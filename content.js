@@ -150,28 +150,94 @@ async function initContentScript() {
 // Instead of creating a floating chat window with mic functionality,
 // we create a floating key (ball) inside its own container with "brain" prefixed classes.
 function createFloatingKey() {
-  // Avoid duplicating the key
-  if (document.getElementById("brain-floating-key")) {
+  // Avoid duplicating the key container
+  if (document.getElementById("brain-floating-key-container")) {
     return;
   }
-  // Create a container for the ball
+  
+  // Create a container for the floating key and voice output
   let container = document.createElement("div");
   container.id = "brain-floating-key-container";
   document.body.appendChild(container);
-
-  // Create the floating key (ball) using the provided CSS class
+  
+  // Create the floating key (ball) using the existing class and styles
   let floatingKey = document.createElement("button");
   floatingKey.id = "brain-floating-key";
   floatingKey.className = "brain-voice-btn";
-  // No inner content per instructions
-  floatingKey.innerHTML = "";
+  // Override position to appear at the top left without altering the original CSS file
+  floatingKey.style.left = "20px";
+  floatingKey.style.right = "auto";
   container.appendChild(floatingKey);
-
-  // Optional: add a click listener to log a message
+  
+  // Create a voice output element for live transcription
+  let voiceOutput = document.createElement("div");
+  voiceOutput.id = "brain-voice-output";
+  // Position it below the floating key at the top left
+  voiceOutput.style.position = "fixed";
+  voiceOutput.style.top = "100px";
+  voiceOutput.style.left = "20px";
+  voiceOutput.style.backgroundColor = "rgba(0, 0, 0, 0.7)";
+  voiceOutput.style.color = "white";
+  voiceOutput.style.padding = "10px";
+  voiceOutput.style.borderRadius = "5px";
+  voiceOutput.style.maxWidth = "300px";
+  voiceOutput.style.fontSize = "14px";
+  container.appendChild(voiceOutput);
+  
+  // Set up Speech Recognition for live voice-to-text conversion
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    console.error("Voice recognition not supported in this browser.");
+    return;
+  }
+  let recognition = new SpeechRecognition();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = "en-US";
+  
+  let recognizing = false;
+  let transcript = "";
+  
+  recognition.onresult = function(event) {
+    let interim = "";
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      if (event.results[i].isFinal) {
+        transcript += event.results[i][0].transcript + " ";
+      } else {
+        interim += event.results[i][0].transcript;
+      }
+    }
+    voiceOutput.innerText = transcript + interim;
+  };
+  
+  recognition.onerror = function(event) {
+    console.error("Recognition error:", event.error);
+  };
+  
+  // Listen for key events: press 'A' to start recognition, release to stop
+  document.addEventListener("keydown", function(e) {
+    if (e.key.toLowerCase() === "a" && !recognizing) {
+      transcript = "";
+      recognition.start();
+      recognizing = true;
+      floatingKey.classList.add("brain-active");
+    }
+  });
+  
+  document.addEventListener("keyup", function(e) {
+    if (e.key.toLowerCase() === "a" && recognizing) {
+      recognition.stop();
+      recognizing = false;
+      floatingKey.classList.remove("brain-active");
+    }
+  });
+  
+  // Optional: log a message when the floating key is clicked
   floatingKey.addEventListener("click", function() {
     console.log("Floating key clicked");
   });
 }
+
 
 async function checkPopupStatus() {
   try {
