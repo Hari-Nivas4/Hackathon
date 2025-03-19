@@ -127,19 +127,29 @@ async function initContentScript() {
 function createFloatingKey() {
   if (document.getElementById("brain-floating-key-container")) return;
 
-      const container = document.createElement("div");
-      container.id = "brain-floating-key-container";
-      document.body.appendChild(container);
+  const container = document.createElement("div");
+  container.id = "brain-floating-key-container";
+  container.style.position = "fixed"; // Ensure it stays in place
+  document.body.appendChild(container);
 
-      const floatingKey = document.createElement("button");
-      floatingKey.className = "brain-voice-btn";
-      floatingKey.style.cssText = "left: 20px; right: auto;";
-      floatingKey.textContent = "";
-      container.appendChild(floatingKey);
+  // Create a close button so the container persists until manually closed.
+  const closeButton = document.createElement("button");
+  closeButton.textContent = "X";
+  closeButton.style.cssText = "position: absolute; top: 5px; right: 5px; z-index: 10000; cursor: pointer;";
+  closeButton.addEventListener("click", () => {
+    container.remove();
+  });
+  container.appendChild(closeButton);
 
-      const voiceOutput = document.createElement("div");
-      voiceOutput.id = "brain-voice-output";
-      voiceOutput.style.cssText = `
+  const floatingKey = document.createElement("button");
+  floatingKey.className = "brain-voice-btn";
+  floatingKey.style.cssText = "left: 20px; right: auto;";
+  floatingKey.textContent = "";
+  container.appendChild(floatingKey);
+
+  const voiceOutput = document.createElement("div");
+  voiceOutput.id = "brain-voice-output";
+  voiceOutput.style.cssText = `
       position: fixed;
       top: 80px;
       left: 10px;
@@ -149,25 +159,24 @@ function createFloatingKey() {
       max-width: 300px;
       font-size: 14px;
       font-weight: bold;
-      /* Set up the gradient for the text */
       background-image: linear-gradient(45deg, red, orange, black, green, blue, indigo, violet);
       background-size: 400% 400%;
       -webkit-background-clip: text;
       color: transparent;
       animation: rainbowAnimation 5s linear infinite;
     `;
-    container.appendChild(voiceOutput);
+  container.appendChild(voiceOutput);
 
-    // Add keyframes for the rainbow animation
-    const style = document.createElement("style");
-    style.textContent = `
+  // Add keyframes for the rainbow animation
+  const style = document.createElement("style");
+  style.textContent = `
     @keyframes rainbowAnimation {
       0% { background-position: 0% 50%; }
       50% { background-position: 100% 50%; }
       100% { background-position: 0% 50%; }
     }
-    `;
-    document.head.appendChild(style);
+  `;
+  document.head.appendChild(style);
 
   if (!(window.SpeechRecognition || window.webkitSpeechRecognition)) {
     console.error("Voice recognition not supported");
@@ -180,25 +189,34 @@ function createFloatingKey() {
   recognition.lang = "en-US";
 
   let recognizing = false;
-  let transcript = "";
+  // Start with a default transcript that is appended at start.
+  let transcript = "TIP: use `find` for page across queries, use 'this' for current page queries.\n\n ";
+  let keyPressStartTime = 0;
 
   recognition.onresult = (event) => {
-    transcript = Array.from(event.results)
-      .filter(res => res.isFinal)
-      .map(res => res[0].transcript)
-      .join(' ');
-    voiceOutput.textContent = transcript;
+    let interimTranscript = "";
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const result = event.results[i];
+      if (result.isFinal) {
+        transcript += result[0].transcript + " ";
+      } else {
+        interimTranscript += result[0].transcript;
+      }
+    }
+    voiceOutput.textContent = transcript + interimTranscript;
   };
 
   recognition.onerror = (event) => {
     console.error("Recognition error:", event.error);
   };
 
-  // When the "a" key is held down, start speech recognition
+  // Start recording on keydown when "a" is pressed (if not already recognizing)
   document.addEventListener("keydown", (e) => {
     if (e.repeat) return;
     if (e.key.toLowerCase() === "a" && !recognizing) {
-      transcript = "";
+      keyPressStartTime = Date.now();
+      // Reset transcript to default message.
+      transcript = "TIP: use `find` for page across queries, use 'this' for current page queries. ";
       try {
         recognition.start();
         recognizing = true;
@@ -209,13 +227,30 @@ function createFloatingKey() {
     }
   });
 
-  // When the "a" key is released, stop recognition and run the function
-  document.addEventListener("keyup", async (e) => {
+  // Stop recording on keyup only if the key was held for at least 300ms.
+  document.addEventListener("keyup", (e) => {
     if (e.key.toLowerCase() === "a" && recognizing) {
-      recognition.stop();
+      const holdDuration = Date.now() - keyPressStartTime;
+      const MIN_HOLD_DURATION = 300; // 300ms threshold
+      if (holdDuration < MIN_HOLD_DURATION) {
+        try {
+          recognition.abort();
+        } catch (err) {
+          console.error("Error aborting recognition:", err);
+        }
+        recognizing = false;
+        floatingKey.classList.remove("brain-active");
+        return;
+      }
+      try {
+        recognition.stop();
+      } catch (err) {
+        console.error("Error stopping recognition:", err);
+      }
       recognizing = false;
       floatingKey.classList.remove("brain-active");
-      setTimeout(processDOMWithSpeech(transcript.trim()) , 100);
+      // Use setTimeout to pass a function reference.
+      setTimeout(() => processDOMWithSpeech(transcript.trim()), 100);
     }
   });
 }
@@ -396,4 +431,25 @@ async function processVoiceCommand(transcript) {
   // Convert the cleaned JSON string to an object.
   const obj = JSON.parse(jsonStr);
   console.log("Parsed object:", obj);
+
+  if(obj.key === -1){
+    fetch("http://localhost:3000/get-groq-chat-completion", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        "key ":0,
+        messages: [
+          { role: "user", content: `<prompt > : ${transcript} : </prompt><just answer as you like but friendly and no harming>
+          ` 
+        
+        }
+        ]
+      })
+  
+    }).then(response => response.json())
+    .then(response => {console.log(response.content)});
+
+  }
 }
