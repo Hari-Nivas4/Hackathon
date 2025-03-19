@@ -26,7 +26,10 @@
     {
       "type": "module",
       "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "js": [
+        "content.js",
+        "html2canvas.min.js"
+        ],
       "css": ["popup.css"],
       "run_at": "document_end"
     }
@@ -34,7 +37,10 @@
   "web_accessible_resources": [
     {
       "resources": ["assets/*"],
+      
       "matches": ["<all_urls>"]
     }
   ]
+  
 }
+

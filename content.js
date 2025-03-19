@@ -241,10 +241,6 @@ async function checkPopupStatus() {
   }
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////// Hari Nivas S////////////////////////////////////////////////////////////////////////////////////////////////////////////////// Global zoom level variable
-
-
 let currentZoom = 1; // Global zoom level variable
 
 async function processDOMWithSpeech(target) {
@@ -270,7 +266,8 @@ async function processDOMWithSpeech(target) {
   ) {
     window.scrollBy({ top: -window.innerHeight, left: 0, behavior: "smooth" });
     return;
-  } else if (
+  } 
+  else if (
     lowerTarget.includes("scroll right") ||
     lowerTarget.includes("roll right") ||
     lowerTarget.includes("right") ||
@@ -279,7 +276,8 @@ async function processDOMWithSpeech(target) {
   ) {
     window.scrollBy({ top: 0, left: window.innerWidth, behavior: "smooth" });
     return;
-  } else if (
+  } 
+  else if (
     lowerTarget.includes("scroll left") ||
     lowerTarget.includes("roll left") ||
     lowerTarget.includes("left") ||
@@ -288,18 +286,44 @@ async function processDOMWithSpeech(target) {
   ) {
     window.scrollBy({ top: 0, left: -window.innerWidth, behavior: "smooth" });
     return;
-  } else if (lowerTarget.includes("zoom in") || lowerTarget.includes("zoomin") || lowerTarget.includes("jhoom in") || lowerTarget.includes("zoomIn") || lowerTarget.includes("room ain")) {
+  } 
+  else if (lowerTarget.includes("zoom in") || lowerTarget.includes("zoomin") || lowerTarget.includes("jhoom in") || lowerTarget.includes("zoomIn") || lowerTarget.includes("room ain")) {
     currentZoom += 0.1;
     document.body.style.zoom = currentZoom;
     return;
-  } else if (lowerTarget.includes("zoom out")  || lowerTarget.includes("zoomout") || lowerTarget.includes("jhoom out") || lowerTarget.includes("zoomOut") || lowerTarget.includes("room out")) {
+  } 
+  else if (lowerTarget.includes("zoom out")  || lowerTarget.includes("zoomout") || lowerTarget.includes("jhoom out") || lowerTarget.includes("zoomOut") || lowerTarget.includes("room out")) {
     currentZoom = Math.max(0.1, currentZoom - 0.1);
     document.body.style.zoom = currentZoom;
     return;
   }
-  
+  else if (lowerTarget.includes("screenshot") || lowerTarget.includes("takeScreenshot") || lowerTarget.includes("captureScreenshot") || lowerTarget.includes("pleasetakescreenshot") || lowerTarget.includes("capture screen")) {  // Replace 'true' with your actual condition
+    takeScreenshot();
+  }
   processVoiceCommand(target);
 }
+//////////////////////////////////////////////////////////////////////////////hari/////////////////////////////////////////////////////////////////////////////////
+function takeScreenshot() {
+  // Capture the entire document body using html2canvas
+  html2canvas(document.body).then(function(canvas) {
+    // Convert the canvas to a PNG data URL
+    const imgData = canvas.toDataURL("image/png");
+    
+    // Create a temporary link element
+    const link = document.createElement("a");
+    link.href = imgData;
+    link.download = "screenshot.png";
+    
+    // Append, trigger click, and remove the link to start download
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    console.log("Screenshot taken and downloaded!");
+  }).catch(function(err) {
+    console.error("Error taking screenshot:", err);
+  });
+}  
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 async function processVoiceCommand(transcript) {
   console.log("Voice command:", transcript);
