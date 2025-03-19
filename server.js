@@ -18,7 +18,7 @@ let should_i_popUp = "no";
 
 const Groq = require("groq-sdk");
 const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY || "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",
+  apiKey: process.env.GROQ_API_KEY || "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",
 });
 
 // Endpoint to get the current popup state.
@@ -47,7 +47,7 @@ app.post("/ai-call-for-tag", (req, res) => {
 async function getGroqChatCompletion(messages) {
   return groq.chat.completions.create({
     messages: messages,
-    model: "llama-3.3-70b-versatile",
+    model: "qwen-qwq-32b",
   });
 }
 
@@ -75,6 +75,8 @@ app.post("/get-groq-chat-completion", async (req, res) => {
     console.log("Messages sent to Groq:", messages);
 
     const chatCompletion = await getGroqChatCompletion(messages);
+    console.log("response from groq", chatCompletion.choices[0]?.message?.content || "");
+    
     res.json({
       content: chatCompletion.choices[0]?.message?.content || "",
     });

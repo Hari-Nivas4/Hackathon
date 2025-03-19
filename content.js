@@ -46,7 +46,7 @@
   border-radius: 50%;
   background: conic-gradient(red, green, blue, rgb(233, 249, 9));
   animation: brain-spin-glow 1s linear infinite;
-  z-index: -1;
+  z-index: 1;
   filter: blur(15px);
 }
 @keyframes brain-spin-glow {
@@ -190,7 +190,7 @@ function createFloatingKey() {
 
   let recognizing = false;
   // Start with a default transcript that is appended at start.
-  let transcript = "TIP: use `find` for page across queries, use 'this' for current page queries.\n\n ";
+  let transcript = " ";
   let keyPressStartTime = 0;
 
   recognition.onresult = (event) => {
@@ -216,7 +216,7 @@ function createFloatingKey() {
     if (e.key.toLowerCase() === "a" && !recognizing) {
       keyPressStartTime = Date.now();
       // Reset transcript to default message.
-      transcript = "TIP: use `find` for page across queries, use 'this' for current page queries. ";
+      transcript = " ";
       try {
         recognition.start();
         recognizing = true;
@@ -339,100 +339,103 @@ async function processDOMWithSpeech(target) {
 async function processVoiceCommand(transcript) {
   console.log("Voice command:", transcript);
   
-  const response = await fetch("http://localhost:3000/get-groq-chat-completion", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      "key ":0,
-      messages: [
-        { role: "user", content: `<prompt > : ${transcript} : </prompt>
-          <core point> This is going to be a prompt refiner that gives only the refined prompt only with zero extra text so that that can be directly feed to the ai for the process specified down</core point>  
-          
-          <in short > if the query is based on personal stuff or any unrelated query or any random stuff than the website  then its key is -1 and if the query that can be done within the current dom then key it as 2 and if it is the query that can be processed by going through all end points connected to the dom will be keyed 3 if not falls on any category put it in key 7>
-          <user was told that including "find" will be a best practice for across dom process such as key 3 and "this" for same page process such as key 2 this will not work all time >
-          <Important note> I want you to refine the prompt to send it the ai , that is "tagger" works with the below specified principle </important note>
-          <principle of the tagger>
+  try {
+    const response = await fetch("http://localhost:3000/get-groq-chat-completion", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        key: 0,
+        messages: [
+          { role: "user", content: `<prompt > : ${transcript} : </prompt>
+            <core point> This is going to be a prompt refiner that gives only the refined prompt only with zero extra text so that that can be directly feed to the ai for the process specified down and <must><must>work like llama-3.3-70b-specdec</must></must></core point>  
+            
+            <in short > if the query is based on personal stuff or any unrelated query or any random stuff than the website  then its key is 1 and if the query that can be done within the current dom then key it as 2 and if it is the query that can be processed by going through all end points connected to the dom will be keyed 3 if not falls or invalid on any category put it in key 7>
+            <user was told that including "find" will be a best practice for across dom process such as key 3 and "this" for same page process such as key 2 this will not work all time >
+            <Important note> I want you to refine the prompt to send it the ai , that is "tagger" works with the below specified principle </important note>
+            <principle of the tagger>
 
-        ......<very important note> ........
+            ......<very important note> ........
 
-        make sure you extract only the necessary data from the prompt and neglect the nouns like "for me" "for him " "please" and etc and process only the command
-        and work accordingly , i expect high precesion and very high acceptance and take a little time and do it.
-        ........<importtant note> ........
+            make sure you extract only the necessary data from the prompt and neglect the nouns like "for me" "for him " "please" and etc and process only the command
+            and work accordingly , i expect high precesion and very high acceptance and take a little time and do it.
+            ........<importtant note> ........
 
-        example of how i want :
-        <user ask> : "can you please tell me the weather"
-        <actual answer i want you to return> : \`{"key" : -1}\`
+            example of how i want :
+            <user ask> : "can you please tell me the weather"
+            <actual answer i want you to return> : \`{"key" : 1}\`
 
-        <user ask> : can you please summarise the web for me 
-        <actual answer i want you to return> : \`{"key" : 2}\`
+            <user ask> : can you please summarise the web for me 
+            <actual answer i want you to return> : \`{"key" : 2}\`
 
-        <user ask> : "could you please find me the menu"
-        <actual answer i want you to return> : \`{"key" : 3}\`
+            <user ask> : "could you please find me the menu"
+            <actual answer i want you to return> : \`{"key" : 3}\`
 
-        <user ask> : "give me the location of login page "
-        <actual answer i want you to return> : \`{"key" : 3}\`
+            <user ask> : "give me the location of login page "
+            <actual answer i want you to return> : \`{"key" : 3}\`
 
-        <user ask> : "what is the weather like today"
-        <actual answer i want you to return> : \`{"key" : -1}\`
+            <user ask> : "what is the weather like today"
+            <actual answer i want you to return> : \`{"key" : 1}\`
 
-        <user ask> : "Hope you can hear me well, so kindly reply me with something."
-        <actual answer> : \`{"key" : -1}\`
+            <user ask> : "Hope you can hear me well, so kindly reply me with something."
+            <actual answer> : \`{"key" : 1}\`
 
-        <user ask> : "See how finding it is."
-        <actual answer i want you to return> : \`{"key" : -1}\`
+            <user ask> : "See how finding it is."
+            <actual answer i want you to return> : \`{"key" : 1}\`
 
-        ...........<pounts to ponder>.....................
-        
-        
+            ...........<pounts to ponder>.....................
+            
+            if a user asks for something that can be done just by iterating the current dom only and using ai by sending the dom means the ask of the user can be done there itself no need of endpoint navigation then key it as 2, 
+            this API call is for tagging purposes only , what you will be returning is going to be a json like stringified object enclosed with "\`" nothing else.
 
-        if a user asks for something that can be done just by iterating the current dom only and using ai by sending the dom means the ask of the user can be done there itself no need of endpoint navigation then key it as 2, 
-        this API call is for tagging purposes only , what you will be returning is going to be a json like stringified object enclosed with "\`" nothing else.
+            there are only three tags and an instruction .
 
-        there are only three tags and an instruction .
+            the instruction would be , if a very unrelated query or any persional query or that is off the website scope like <how are you , or something else like that > you have to answer normally as you do and return \`{"key" : 1}\`.
+            if the user said some actions that can be done within the page where they are actualy in , you have to return \`{"key" : 2}\`
 
-        the instruction would be , if a very unrelated query or any persional query or that is off the website scope like <how are you , or something else like that > you have to answer normally as you do and return \`{"key" : -1}\`.
-        if the user said some actions that can be done within the page where they are actualy in , you have to return \`{"key" : 2}\`
+            if any other querry return \`{"key" : 3}\`
 
-        if any other querry return \`{"key" : 3}\`
+            another very important note , your output should contain only \`{"key" : <number>}\` and nothing else . like zero extra text , i want only that object. unless it is a very unrelated querry like i mentioned above . there you can reply normally and return 1 as key.
 
-        another very important note , your output should contain only \`{"key" : <number>}\` and nothing else . like zero extra text , i want only that object. unless it is a very unrelated querry like i mentioned above . there you can reply normally and return -1 as key.
+            do well
 
-        do well
+            ..............<extra>........................
+            .............<WHAT AI IS USED FOR>.............
+            you are going to work as a tagger for now , the tag you provide will be given to an extension that would do some flow changes with it , so act accordingly .
+            .............<goal of the project> ..................
+            this is a extension which will be used for navigation purposes , the bigest
+            achievement that this extension has to  achieve is . if user said <"give me the menu of this hotel"> that voice will be converted to text (already done and thats how you recieved it) and have to 
+            tag his query <what this call meant for > and has to navigate to the menu that can be in any form such as <a href = "menu.html"> or <a id = "menu"> or <a class = "menu"> or any other form and has to click on that or any type of span div that has some text or table or svgs etc <can be aby element that html has> .
+            </principle of the tagger>
+            ` 
+          }
+        ]
+      })
+    });
 
-       
+    const responseData = await response.json();
+    
+    // Extracting the JSON object from the response
+    let extractedJSON = responseData.content.substring(responseData.content.length - 13,responseData.content .length);
+    console.log("extractedJSON: ",extractedJSON);
+    
 
+    try {
+      globalThis.obj = JSON.parse(extractedJSON);
+      console.log("Extracted JSON object:", obj);
+    } catch (error) {
+      console.error("Error parsing extracted JSON:", error);
+    }
 
-        ..............<extra>........................
-        .............<WHAT AI IS USED FOR>.............
-        you are going to work as a tagger for now , the tag you provide will be given to an extension that would do some flow changes with it , so act accordingly .
-        .............<goal of the project> ..................
-        this is a extension which will be used for navigation purposes , the bigest
-        achievement that this extension has to  achieve is . if user said <"give me the menu of this hotel"> that voice will be converted to text (already done and thats how you recieved it) and have to 
-        tag his query <what this call meant for > and has to navigate to the menu that can be in any form such as <a href = "menu.html"> or <a id = "menu"> or <a class = "menu"> or any other form and has to click on that or any type of span div that has some text or table or svgs etc <can be aby element that html has> .
-          </principle of the tagger>
-        ` 
-      
-      }
-      ]
-    })
-
-  });
-  //response one for tagging purposes 
-  
-  const data = await response.json(); // Parse the response data as JSON
-  let jsonStr = typeof data.content === "string" ? data.content : data.content || "";
-  jsonStr = jsonStr.trim();
-  if (jsonStr.startsWith('`') && jsonStr.endsWith('`')) {
-    jsonStr = jsonStr.slice(1, -1);
+  } catch (error) {
+    console.error("Error processing voice command:", error);
   }
 
-  // Convert the cleaned JSON string to an object.
-  const obj = JSON.parse(jsonStr);
-  console.log("Parsed object:", obj);
 
-  if(obj.key === -1){
+  
+
+  if(obj.key === 1){
     fetch("http://localhost:3000/get-groq-chat-completion", {
       method: "POST",
       headers: {
@@ -443,7 +446,6 @@ async function processVoiceCommand(transcript) {
         messages: [
           { role: "user", content: `<prompt > : ${transcript} : </prompt><just answer as you like but friendly and no harming>
           ` 
-        
         }
         ]
       })
@@ -452,4 +454,54 @@ async function processVoiceCommand(transcript) {
     .then(response => {console.log(response.content)});
 
   }
+  if (obj.key === 2) {
+    const dom = document.documentElement.outerHTML;
+    const partLength = Math.ceil(dom.length / 20);
+    const parts = [];
+  
+    // Split the DOM into 6 parts.
+    for (let i = 0; i < 20; i++) {
+      parts.push(dom.slice(i * partLength, (i + 1) * partLength));
+    }
+  
+    // Example transcript provided by the user.
+    
+  
+    // Process each part by sending a request to the AI API.
+    const promises = parts.map((part, index) => {
+      // Build a prompt that includes both the transcript and the DOM snippet.
+      const promptMessage = `<prompt>You will be given a DOM snippet and a transcript given from user for finding something from a website , since giving the entire dom to the AI is not effecient the dom is split into chunks and will be given you with transcript <important : What AI have to do is compare the TRANSCRIPT and the dom snippet and return a number ranging from 0 to 9 and must not allow any other text to get added to the output , (only one number output) representing the similarity between the transcript and dom snipet and most importantly your output should contain only one number 0 to 9 ></prompt>Transcript: ${transcript} | DOM snippet: ${part}`;
+      
+      return fetch("http://localhost:3000/get-groq-chat-completion", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          key: 0,
+          messages: [
+            { role: "user", content: promptMessage }
+          ]
+        })
+      })
+      .then(response => {
+        // Expecting the response to return a number (as a string or number) representing the sync value.
+        const syncValue = Number(response);
+        console.log(`DOM Index: ${index}, Sync Value: ${syncValue}`);
+        return syncValue;
+      })
+      .catch(error => {
+        console.error(`Error processing DOM index ${index}:`, error);
+      });
+    });
+  
+    // When all promises are resolved, log the overall results.
+    Promise.all(promises)
+      .then(results => {
+        console.log("All sync values:", results);
+      });
+  }
+  
+  
+  
 }
