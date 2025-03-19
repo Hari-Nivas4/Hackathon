@@ -207,6 +207,87 @@ function simulateClick(target) {
 }
 
 // ===================
+// Scrollable Container Helper & Scroll Commands
+// ===================
+// This function searches for a scrollable container (div, section, main, article)
+// that has overflow set to auto or scroll and content larger than its visible area.
+function findScrollableContainer() {
+  const elements = document.querySelectorAll("div, section, main, article");
+  for (let element of elements) {
+    const style = window.getComputedStyle(element);
+    const overflowY = style.getPropertyValue("overflow-y");
+    const overflowX = style.getPropertyValue("overflow-x");
+    if (
+      ((overflowY === "auto" || overflowY === "scroll") && element.scrollHeight > element.clientHeight) ||
+      ((overflowX === "auto" || overflowX === "scroll") && element.scrollWidth > element.clientWidth)
+    ) {
+      return element;
+    }
+  }
+  return null;
+}
+
+// Scroll functions that use the container if available, otherwise scroll the window.
+function scrollDown() {
+  const container = findScrollableContainer();
+  if (container) {
+    container.scrollBy({ top: container.clientHeight, left: 0, behavior: "smooth" });
+    console.log("Scrolled down container");
+  } else {
+    window.scrollBy({ top: window.innerHeight, left: 0, behavior: "smooth" });
+    console.log("Scrolled down window");
+  }
+}
+
+function scrollUp() {
+  const container = findScrollableContainer();
+  if (container) {
+    container.scrollBy({ top: -container.clientHeight, left: 0, behavior: "smooth" });
+    console.log("Scrolled up container");
+  } else {
+    window.scrollBy({ top: -window.innerHeight, left: 0, behavior: "smooth" });
+    console.log("Scrolled up window");
+  }
+}
+
+function scrollRight() {
+  const container = findScrollableContainer();
+  if (container) {
+    container.scrollBy({ top: 0, left: container.clientWidth, behavior: "smooth" });
+    console.log("Scrolled right container");
+  } else {
+    window.scrollBy({ top: 0, left: window.innerWidth, behavior: "smooth" });
+    console.log("Scrolled right window");
+  }
+}
+
+function scrollLeft() {
+  const container = findScrollableContainer();
+  if (container) {
+    container.scrollBy({ top: 0, left: -container.clientWidth, behavior: "smooth" });
+    console.log("Scrolled left container");
+  } else {
+    window.scrollBy({ top: 0, left: -window.innerWidth, behavior: "smooth" });
+    console.log("Scrolled left window");
+  }
+}
+
+// ===================
+// Zoom Functions (unchanged)
+// ===================
+function zoomIn() {
+  currentZoom += 0.1;
+  document.body.style.zoom = currentZoom;
+  console.log("Zoomed in, current zoom:", currentZoom);
+}
+
+function zoomOut() {
+  currentZoom = Math.max(0.1, currentZoom - 0.1);
+  document.body.style.zoom = currentZoom;
+  console.log("Zoomed out, current zoom:", currentZoom);
+}
+
+// ===================
 // Screenshot Function
 // ===================
 function takeScreenshot() {
@@ -222,6 +303,38 @@ function takeScreenshot() {
   }).catch(function(err) {
     console.error("Error taking screenshot:", err);
   });
+}
+
+// ===================
+// Endpoint Search Function (for "go to" commands)
+// ===================
+function goToEndpoint(keyword) {
+  keyword = preprocessString(keyword);
+  const anchors = document.querySelectorAll("a[href]");
+  let bestCandidate = { element: null, score: 0 };
+  
+  anchors.forEach(anchor => {
+    const href = preprocessString(anchor.getAttribute("href") || "");
+    const title = preprocessString(anchor.getAttribute("title") || "");
+    const text = preprocessString(anchor.innerText || "");
+    
+    const scoreHref = similarity(href, keyword);
+    const scoreTitle = similarity(title, keyword);
+    const scoreText = similarity(text, keyword);
+    
+    const score = Math.max(scoreHref, scoreTitle, scoreText);
+    if (score > bestCandidate.score) {
+      bestCandidate = { element: anchor, score: score };
+    }
+  });
+  
+  // Use a lower threshold for endpoint search.
+  if (bestCandidate.score >= 0.6 && bestCandidate.element) {
+    console.log("Endpoint: Clicking element with score:", bestCandidate.score, bestCandidate.element);
+    bestCandidate.element.click();
+  } else {
+    console.log("Endpoint: No matching endpoint found for:", keyword);
+  }
 }
 
 // ===================
@@ -363,66 +476,39 @@ async function processDOMWithSpeech(target) {
   if (!target) return;
   const lowerTarget = target.toLowerCase();
   
-  if (
-    lowerTarget.includes("scroll down") ||
-    lowerTarget.includes("roll down") ||
-    lowerTarget.includes("down") ||
-    lowerTarget.includes("move down") ||
-    lowerTarget.includes("call down")
-  ) {
-    window.scrollBy({ top: window.innerHeight, left: 0, behavior: "smooth" });
+  if (lowerTarget.includes("scroll down") || lowerTarget.includes("roll down") ||
+      lowerTarget.includes("down") || lowerTarget.includes("move down") || lowerTarget.includes("call down")) {
+    scrollDown();
     return;
-  } else if (
-    lowerTarget.includes("scroll up") ||
-    lowerTarget.includes("roll up") ||
-    lowerTarget.includes("up") ||
-    lowerTarget.includes("move up") ||
-    lowerTarget.includes("call up")
-  ) {
-    window.scrollBy({ top: -window.innerHeight, left: 0, behavior: "smooth" });
+  } else if (lowerTarget.includes("scroll up") || lowerTarget.includes("roll up") ||
+             lowerTarget.includes("up") || lowerTarget.includes("move up") || lowerTarget.includes("call up")) {
+    scrollUp();
     return;
-  } else if (
-    lowerTarget.includes("scroll right") ||
-    lowerTarget.includes("roll right") ||
-    lowerTarget.includes("right") ||
-    lowerTarget.includes("move right") ||
-    lowerTarget.includes("call right")
-  ) {
-    window.scrollBy({ top: 0, left: window.innerWidth, behavior: "smooth" });
+  } else if (lowerTarget.includes("scroll right") || lowerTarget.includes("roll right") ||
+             lowerTarget.includes("right") || lowerTarget.includes("move right") || lowerTarget.includes("call right")) {
+    scrollRight();
     return;
-  } else if (
-    lowerTarget.includes("scroll left") ||
-    lowerTarget.includes("roll left") ||
-    lowerTarget.includes("left") ||
-    lowerTarget.includes("move left") ||
-    lowerTarget.includes("call left")
-  ) {
-    window.scrollBy({ top: 0, left: -window.innerWidth, behavior: "smooth" });
+  } else if (lowerTarget.includes("scroll left") || lowerTarget.includes("roll left") ||
+             lowerTarget.includes("left") || lowerTarget.includes("move left") || lowerTarget.includes("call left")) {
+    scrollLeft();
     return;
-  } else if (
-    lowerTarget.includes("zoom in") || lowerTarget.includes("zoomin") ||
-    lowerTarget.includes("jhoom in") || lowerTarget.includes("zoomIn") || lowerTarget.includes("room ain")
-  ) {
-    currentZoom += 0.1;
-    document.body.style.zoom = currentZoom;
+  } else if (lowerTarget.includes("zoom in") || lowerTarget.includes("zoomin") ||
+             lowerTarget.includes("jhoom in") || lowerTarget.includes("zoomIn") || lowerTarget.includes("room ain")) {
+    zoomIn();
     return;
-  } else if (
-    lowerTarget.includes("zoom out") || lowerTarget.includes("zoomout") ||
-    lowerTarget.includes("jhoom out") || lowerTarget.includes("zoomOut") || lowerTarget.includes("room out")
-  ) {
-    currentZoom = Math.max(0.1, currentZoom - 0.1);
-    document.body.style.zoom = currentZoom;
+  } else if (lowerTarget.includes("zoom out") || lowerTarget.includes("zoomout") ||
+             lowerTarget.includes("jhoom out") || lowerTarget.includes("zoomOut") || lowerTarget.includes("room out")) {
+    zoomOut();
     return;
-  } else if (
-    lowerTarget.includes("screenshot") || lowerTarget.includes("takeScreenshot") ||
-    lowerTarget.includes("captureScreenshot") || lowerTarget.includes("capture screen")
-  ) {
+  } else if (lowerTarget.includes("screenshot") || lowerTarget.includes("takeScreenshot") ||
+             lowerTarget.includes("captureScreenshot") || lowerTarget.includes("capture screen")) {
     takeScreenshot();
     return;
-  } else if (
-    lowerTarget.includes("click") || lowerTarget.includes("press") || lowerTarget.includes("tap")
-  ) {
+  } else if (lowerTarget.includes("click") || lowerTarget.includes("press") || lowerTarget.includes("tap")) {
     simulateClick(lowerTarget);
+    return;
+  } else if (lowerTarget.includes("profile")) {
+    goToEndpoint("profile");
     return;
   }
   
