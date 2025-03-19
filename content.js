@@ -134,18 +134,40 @@ function createFloatingKey() {
   const floatingKey = document.createElement("button");
   floatingKey.className = "brain-voice-btn";
   floatingKey.style.cssText = "left: 20px; right: auto;";
-  floatingKey.textContent = "🔘";
+  floatingKey.textContent = "";
   container.appendChild(floatingKey);
 
   const voiceOutput = document.createElement("div");
   voiceOutput.id = "brain-voice-output";
   voiceOutput.style.cssText = `
-    position: fixed; top: 100px; left: 20px;
-    background: rgba(0, 0, 0, 0.7); color: white;
-    padding: 10px; border-radius: 5px;
-    max-width: 300px; font-size: 14px;
-  `;
-  container.appendChild(voiceOutput);
+  position: fixed;
+  top: 80px;
+  left: 10px;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 10px;
+  border-radius: 5px;
+  max-width: 300px;
+  font-size: 14px;
+  font-weight: bold;
+  /* Set up the gradient for the text */
+  background-image: linear-gradient(45deg, red, orange, black, green, blue, indigo, violet);
+  background-size: 400% 400%;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: rainbowAnimation 5s linear infinite;
+`;
+container.appendChild(voiceOutput);
+
+// Add keyframes for the rainbow animation
+const style = document.createElement("style");
+style.textContent = `
+@keyframes rainbowAnimation {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+`;
+document.head.appendChild(style);
 
   if (!(window.SpeechRecognition || window.webkitSpeechRecognition)) {
     console.error("Voice recognition not supported");
@@ -193,7 +215,7 @@ function createFloatingKey() {
       recognition.stop();
       recognizing = false;
       floatingKey.classList.remove("brain-active");
-      await processDOMWithSpeech(transcript.trim());
+      setTimeout(processDOMWithSpeech(transcript.trim()) , 10);
     }
   });
 }
@@ -219,10 +241,28 @@ async function checkPopupStatus() {
   }
 }
 
-
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////// Hari Nivas S/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 async function processDOMWithSpeech(target) {
+  console.log("Processing target:", target);
+  if (!target) return;
+  if (target.toLowerCase().includes("scroll down") || target.toLowerCase().includes("roll down") || target.toLowerCase().includes("down") || target.toLowerCase().includes("move down") || target.toLowerCase().includes("call down")) {
+    window.scrollBy({ top: window.innerHeight, left: 0, behavior: "smooth" });
+    return;
+  } else if (target.toLowerCase().includes("scroll up")  || target.toLowerCase().includes("roll up") || target.toLowerCase().includes("up") || target.toLowerCase().includes("move up") || target.toLowerCase().includes("call up")) {
+    window.scrollBy({ top: -window.innerHeight, left: 0, behavior: "smooth" });
+    return;
+  }
+  else if (target.toLowerCase().includes("scroll right") || target.toLowerCase().includes("roll right") || target.toLowerCase().includes("right") || target.toLowerCase().includes("move right") || target.toLowerCase().includes("call right")) {
+    window.scrollBy({ top: 0, left: window.innerWidth, behavior: "smooth" });
+    return;
+  } else if (target.toLowerCase().includes("scroll left") || target.toLowerCase().includes("roll left") || target.toLowerCase().includes("left") || target.toLowerCase().includes("move left") || target.toLowerCase().includes("call left")) {
+    window.scrollBy({ top: 0, left: -window.innerWidth, behavior: "smooth" });
+    return;
+  }
   processVoiceCommand(target);
 }
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 async function processVoiceCommand(transcript) {
   console.log("Voice command:", transcript);
   
