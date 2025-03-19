@@ -1,3 +1,5 @@
+
+
 // Inject the provided CSS with "brain" prefixed class names
 (function injectCSS() {
   const css = `
@@ -225,7 +227,7 @@ async function processVoiceCommand(transcript) {
   console.log("Voice command:", transcript);
   
   const transcript1 = {
-    message: "Your message here"
+    message: transcript
   };
   
   const response = await fetch("http://localhost:3000/ai-call-for-tag", {
@@ -239,5 +241,22 @@ async function processVoiceCommand(transcript) {
 
   const jsonData = await response.json();
   console.log(jsonData);
-  return ;
+
+
+  console.log("is ai");
+
+  const response1 = await fetch("http://localhost:3000/get-groq-chat-completion", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      messages: [
+        { role: "user", content: `${transcript} just tell me something about large language models` }
+      ]
+    })
+  });
+  
+  const data = await response1.json(); // Parse the response data as JSON
+  console.log(data); // Log the parsed data
 }

@@ -4,14 +4,15 @@ const cors = require("cors");
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Enable CORS so that your extension (running on any origin) can communicate with this server.
 app.use(cors());
 app.use(express.json());
 
 let should_i_popUp = "no";
 
-const Groq = require("groq-sdk"); // Use require instead of import
-const groq = new Groq({ apiKey: "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"});
+const Groq = require("groq-sdk");
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY || "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",
+});
 
 // Endpoint to get the current popup state.
 app.get("/should-i-pop", (req, res) => {
@@ -20,41 +21,56 @@ app.get("/should-i-pop", (req, res) => {
 
 // Endpoint to toggle the popup state.
 app.post("/create-popup1", (req, res) => {
-  should_i_popUp = (should_i_popUp === "yes") ? "no" : "yes";
+  should_i_popUp = should_i_popUp === "yes" ? "no" : "yes";
   res.json({ ok: true, message: should_i_popUp });
 });
 
 // Endpoint to update DOM data.
 app.post("/ai-call-for-tag", (req, res) => {
-  let promptToAI = {
-    "importantNote" : "You are an Ai assistant for a web based task",
-    "message" : req.body.message // Handle the request body
+  const promptToAI = {
+    importantNote: "You are an AI assistant for a web-based task",
+    message: req.body.message || "", // Ensure message exists
   };
 
-  // You can use the promptToAI object as needed, for example:
   console.log(promptToAI);
-
   res.json({ ok: true, message: "AI call successful" });
-});
-
-// Endpoint to get the Groq chat completion.
-app.post("/get-groq-chat-completion", async (req, res) => {
-  try {
-    const chatCompletion = await getGroqChatCompletion(req.body.messages);
-    res.json({ ok: true, message: chatCompletion.choices[0]?.message?.content || "" });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ ok: false, message: "Error getting chat completion" });
-  }
 });
 
 // Function to get the Groq chat completion.
 async function getGroqChatCompletion(messages) {
   return groq.chat.completions.create({
     messages: messages,
-    model: "llama-3.3-70b-versatile",
+    model: "llama3-8b-8192",
   });
 }
+
+// Endpoint to get the Groq chat completion.
+app.post("/get-groq-chat-completion", async (req, res) => {
+  try {
+    // Ensure req.body.messages is an array
+    const { messages } = req.body;
+
+    if (!Array.isArray(messages)) {
+      console.warn("Invalid messages format received, using default.");
+      messages = [
+        {
+          role: "user",
+          content: "Explain the importance of fast language models",
+        },
+      ];
+    }
+
+    console.log("Messages sent to Groq:", messages);
+
+    const chatCompletion = await getGroqChatCompletion(messages);
+    res.json({
+      content: chatCompletion.choices[0]?.message?.content || "",
+    });
+  } catch (error) {
+    console.error("Error getting chat completion:", error);
+    res.status(500).json({ error: "Failed to get chat completion" });
+  }
+});
 
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`);
