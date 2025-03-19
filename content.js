@@ -243,23 +243,59 @@ async function checkPopupStatus() {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////// Hari Nivas S/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+let currentZoom = 1; // Global zoom level variable
+
 async function processDOMWithSpeech(target) {
   console.log("Processing target:", target);
   if (!target) return;
-  if (target.toLowerCase().includes("scroll down") || target.toLowerCase().includes("roll down") || target.toLowerCase().includes("down") || target.toLowerCase().includes("move down") || target.toLowerCase().includes("call down")) {
+  const lowerTarget = target.toLowerCase(); // Define once for reuse
+  
+  if (
+    lowerTarget.includes("scroll down") ||
+    lowerTarget.includes("roll down") ||
+    lowerTarget.includes("down") ||
+    lowerTarget.includes("move down") ||
+    lowerTarget.includes("call down")
+  ) {
     window.scrollBy({ top: window.innerHeight, left: 0, behavior: "smooth" });
     return;
-  } else if (target.toLowerCase().includes("scroll up")  || target.toLowerCase().includes("roll up") || target.toLowerCase().includes("up") || target.toLowerCase().includes("move up") || target.toLowerCase().includes("call up")) {
+  } else if (
+    lowerTarget.includes("scroll up") ||
+    lowerTarget.includes("roll up") ||
+    lowerTarget.includes("up") ||
+    lowerTarget.includes("move up") ||
+    lowerTarget.includes("call up")
+  ) {
     window.scrollBy({ top: -window.innerHeight, left: 0, behavior: "smooth" });
     return;
-  }
-  else if (target.toLowerCase().includes("scroll right") || target.toLowerCase().includes("roll right") || target.toLowerCase().includes("right") || target.toLowerCase().includes("move right") || target.toLowerCase().includes("call right")) {
+  } else if (
+    lowerTarget.includes("scroll right") ||
+    lowerTarget.includes("roll right") ||
+    lowerTarget.includes("right") ||
+    lowerTarget.includes("move right") ||
+    lowerTarget.includes("call right")
+  ) {
     window.scrollBy({ top: 0, left: window.innerWidth, behavior: "smooth" });
     return;
-  } else if (target.toLowerCase().includes("scroll left") || target.toLowerCase().includes("roll left") || target.toLowerCase().includes("left") || target.toLowerCase().includes("move left") || target.toLowerCase().includes("call left")) {
+  } else if (
+    lowerTarget.includes("scroll left") ||
+    lowerTarget.includes("roll left") ||
+    lowerTarget.includes("left") ||
+    lowerTarget.includes("move left") ||
+    lowerTarget.includes("call left")
+  ) {
     window.scrollBy({ top: 0, left: -window.innerWidth, behavior: "smooth" });
     return;
+  } else if (lowerTarget.includes("zoom in") || lowerTarget.includes("zoomin") || lowerTarget.includes("jhoom in") || lowerTarget.includes("zoomIn") || lowerTarget.includes("room ain")) {
+    currentZoom += 0.1;
+    document.body.style.zoom = currentZoom;
+    return;
+  } else if (lowerTarget.includes("zoom out")  || lowerTarget.includes("zoomout") || lowerTarget.includes("jhoom out") || lowerTarget.includes("zoomOut") || lowerTarget.includes("room out")) {
+    currentZoom = Math.max(0.1, currentZoom - 0.1);
+    document.body.style.zoom = currentZoom;
+    return;
   }
+  
   processVoiceCommand(target);
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
