@@ -1,4 +1,11 @@
 // server.js
+
+
+
+
+
+
+
 const express = require("express");
 const cors = require("cors");
 const app = express();
@@ -40,7 +47,7 @@ app.post("/ai-call-for-tag", (req, res) => {
 async function getGroqChatCompletion(messages) {
   return groq.chat.completions.create({
     messages: messages,
-    model: "llama3-8b-8192",
+    model: "llama-3.3-70b-versatile",
   });
 }
 
@@ -48,6 +55,11 @@ async function getGroqChatCompletion(messages) {
 app.post("/get-groq-chat-completion", async (req, res) => {
   try {
     // Ensure req.body.messages is an array
+    
+    if(req.key === 0)
+    {
+      req.body = req.body;
+    }
     const { messages } = req.body;
 
     if (!Array.isArray(messages)) {
