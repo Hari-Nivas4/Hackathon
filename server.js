@@ -18,7 +18,7 @@ let should_i_popUp = "no";
 
 const Groq = require("groq-sdk");
 const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY || "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",
+  apiKey: process.env.GROQ_API_KEY || "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",
 });
 
 // Endpoint to get the current popup state.

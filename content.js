@@ -313,10 +313,13 @@ async function processVoiceCommand(transcript) {
       "key ":0,
       messages: [
         { role: "user", content: `<prompt > : ${transcript} : </prompt>
-          <core point> This is going to be a prompt refiner that gives only the refined prompt only with zero extra text so that that can be directly feed to the ai for the process specified down</core point>
+          <core point> This is going to be a prompt refiner that gives only the refined prompt only with zero extra text so that that can be directly feed to the ai for the process specified down</core point>  
+          
+          <in short > if the query is based on personal stuff or any unrelated query or any random stuff than the website  then its key is -1 and if the query that can be done within the current dom then key it as 2 and if it is the query that can be processed by going through all end points connected to the dom will be keyed 3 if not falls on any category put it in key 7>
+          <user was told that including "find" will be a best practice for across dom process such as key 3 and "this" for same page process such as key 2 this will not work all time >
           <Important note> I want you to refine the prompt to send it the ai , that is "tagger" works with the below specified principle </important note>
           <principle of the tagger>
-          
+
         ......<very important note> ........
 
         make sure you extract only the necessary data from the prompt and neglect the nouns like "for me" "for him " "please" and etc and process only the command
@@ -339,9 +342,16 @@ async function processVoiceCommand(transcript) {
         <user ask> : "what is the weather like today"
         <actual answer i want you to return> : \`{"key" : -1}\`
 
-        
+        <user ask> : "Hope you can hear me well, so kindly reply me with something."
+        <actual answer> : \`{"key" : -1}\`
+
+        <user ask> : "See how finding it is."
+        <actual answer i want you to return> : \`{"key" : -1}\`
+
         ...........<pounts to ponder>.....................
         
+        
+
         if a user asks for something that can be done just by iterating the current dom only and using ai by sending the dom means the ask of the user can be done there itself no need of endpoint navigation then key it as 2, 
         this API call is for tagging purposes only , what you will be returning is going to be a json like stringified object enclosed with "\`" nothing else.
 
@@ -377,5 +387,13 @@ async function processVoiceCommand(transcript) {
   //response one for tagging purposes 
   
   const data = await response.json(); // Parse the response data as JSON
-  console.log(data.content); // Log the parsed data
+  let jsonStr = typeof data.content === "string" ? data.content : data.content || "";
+  jsonStr = jsonStr.trim();
+  if (jsonStr.startsWith('`') && jsonStr.endsWith('`')) {
+    jsonStr = jsonStr.slice(1, -1);
+  }
+
+  // Convert the cleaned JSON string to an object.
+  const obj = JSON.parse(jsonStr);
+  console.log("Parsed object:", obj);
 }
