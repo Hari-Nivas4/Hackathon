@@ -66,6 +66,11 @@ let needPopup = false;
 const SUBMIT_ENDPOINT = "http://localhost:3000/submit-element";
 let currentZoom = 1; // Global zoom level variable
 
+// NEW: Set persistent flag if not already set (default: true)
+if (sessionStorage.getItem("floatingBallVisible") === null) {
+  sessionStorage.setItem("floatingBallVisible", "true");
+}
+
 if (document.readyState === "loading") {
   console.log("here");
   document.addEventListener("DOMContentLoaded", initContentScript);
@@ -112,8 +117,6 @@ new MutationObserver(() => {
 // ===================
 // New Helper Functions for Click Simulation
 // ===================
-
-// Levenshtein Distance: computes edit distance between two strings
 function levenshteinDistance(a, b) {
   const an = a ? a.length : 0;
   const bn = b ? b.length : 0;
@@ -132,9 +135,9 @@ function levenshteinDistance(a, b) {
         matrix[i][j] = matrix[i - 1][j - 1];
       } else {
         matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1, // substitution
-          matrix[i][j - 1] + 1,     // insertion
-          matrix[i - 1][j] + 1      // deletion
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
         );
       }
     }
@@ -142,7 +145,6 @@ function levenshteinDistance(a, b) {
   return matrix[bn][an];
 }
 
-// Similarity: returns a ratio between 0 and 1 (1 = exact match)
 function similarity(s1, s2) {
   if (!s1 || !s2) return 0;
   const distance = levenshteinDistance(s1, s2);
@@ -150,45 +152,31 @@ function similarity(s1, s2) {
   return 1 - distance / maxLen;
 }
 
-// Preprocess a string: lower-case, remove punctuation, extra spaces, etc.
 function preprocessString(str) {
   return str.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim();
 }
 
-// simulateClick: finds the best matching clickable element based on keyword,
-// giving bonus if the computed cursor style is "pointer".
 function simulateClick(target) {
-  // Remove click/press/tap keywords and preprocess the remaining string.
   const rawKeyword = target.replace(/click|press|tap/gi, "").trim();
   const keyword = preprocessString(rawKeyword);
   if (!keyword) {
     console.log("No target keyword provided for click");
     return;
   }
-
   const clickableSelectors = "a, button, input, div, span";
   const elements = document.querySelectorAll(clickableSelectors);
-  
   let bestMatch = { element: null, score: 0 };
-
   elements.forEach((element) => {
-    // Skip hidden elements.
     if (!element.offsetParent) return;
-    
-    // Check if the element's computed style has a pointer cursor.
     const computed = window.getComputedStyle(element);
     const hasPointer = computed.cursor && computed.cursor.includes("pointer");
-
-    // Preprocess texts from innerText, id, and class.
     const texts = [
       preprocessString(element.innerText || ""),
       preprocessString(element.getAttribute("id") || ""),
       preprocessString(element.getAttribute("class") || "")
     ];
-    
     texts.forEach((text) => {
       let score = similarity(keyword, text);
-      // Add bonus if element appears clickable.
       if (hasPointer) {
         score += 0.1;
       }
@@ -197,7 +185,6 @@ function simulateClick(target) {
       }
     });
   });
-
   if (bestMatch.score >= 0.8 && bestMatch.element) {
     console.log("Clicking element with score:", bestMatch.score, bestMatch.element);
     bestMatch.element.click();
@@ -209,8 +196,6 @@ function simulateClick(target) {
 // ===================
 // Scrollable Container Helper & Scroll Commands
 // ===================
-// This function searches for a scrollable container (div, section, main, article)
-// that has overflow set to auto or scroll and content larger than its visible area.
 function findScrollableContainer() {
   const elements = document.querySelectorAll("div, section, main, article");
   for (let element of elements) {
@@ -227,7 +212,6 @@ function findScrollableContainer() {
   return null;
 }
 
-// Scroll functions that use the container if available, otherwise scroll the window.
 function scrollDown() {
   const container = findScrollableContainer();
   if (container) {
@@ -312,23 +296,18 @@ function goToEndpoint(keyword) {
   keyword = preprocessString(keyword);
   const anchors = document.querySelectorAll("a[href]");
   let bestCandidate = { element: null, score: 0 };
-  
   anchors.forEach(anchor => {
     const href = preprocessString(anchor.getAttribute("href") || "");
     const title = preprocessString(anchor.getAttribute("title") || "");
     const text = preprocessString(anchor.innerText || "");
-    
     const scoreHref = similarity(href, keyword);
     const scoreTitle = similarity(title, keyword);
     const scoreText = similarity(text, keyword);
-    
     const score = Math.max(scoreHref, scoreTitle, scoreText);
     if (score > bestCandidate.score) {
       bestCandidate = { element: anchor, score: score };
     }
   });
-  
-  // Use a lower threshold for endpoint search.
   if (bestCandidate.score >= 0.6 && bestCandidate.element) {
     console.log("Endpoint: Clicking element with score:", bestCandidate.score, bestCandidate.element);
     bestCandidate.element.click();
@@ -343,7 +322,6 @@ function goToEndpoint(keyword) {
 async function initContentScript() {
   console.log("Content script loaded!");
   await checkPopupStatus();
-
   chrome.runtime.onMessage.addListener((message) => {
     if (message.event === "create-popup" && !popupon) {
       chrome.runtime.sendMessage({ action: "create-popup1" });
@@ -355,18 +333,17 @@ async function initContentScript() {
 }
 
 function createFloatingKey() {
+  // NEW: Only create if persistent flag is "true"
+  if (sessionStorage.getItem("floatingBallVisible") !== "true") return;
   if (document.getElementById("brain-floating-key-container")) return;
-
   const container = document.createElement("div");
   container.id = "brain-floating-key-container";
   document.body.appendChild(container);
-
   const floatingKey = document.createElement("button");
   floatingKey.className = "brain-voice-btn";
   floatingKey.style.cssText = "left: 20px; right: auto;";
   floatingKey.textContent = "";
   container.appendChild(floatingKey);
-
   const voiceOutput = document.createElement("div");
   voiceOutput.id = "brain-voice-output";
   voiceOutput.style.cssText = `
@@ -386,8 +363,6 @@ function createFloatingKey() {
     animation: rainbowAnimation 5s linear infinite;
   `;
   container.appendChild(voiceOutput);
-
-  // Add keyframes for the rainbow animation
   const style = document.createElement("style");
   style.textContent = `
     @keyframes rainbowAnimation {
@@ -397,20 +372,16 @@ function createFloatingKey() {
     }
   `;
   document.head.appendChild(style);
-
   if (!(window.SpeechRecognition || window.webkitSpeechRecognition)) {
     console.error("Voice recognition not supported");
     return;
   }
-
   const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
   recognition.continuous = true;
   recognition.interimResults = true;
   recognition.lang = "en-US";
-
   let recognizing = false;
   let transcript = "";
-
   recognition.onresult = (event) => {
     transcript = Array.from(event.results)
       .filter(res => res.isFinal)
@@ -418,12 +389,9 @@ function createFloatingKey() {
       .join(' ');
     voiceOutput.textContent = transcript;
   };
-
   recognition.onerror = (event) => {
     console.error("Recognition error:", event.error);
   };
-
-  // Start speech recognition on keydown of "a"
   document.addEventListener("keydown", (e) => {
     if (e.repeat) return;
     if (e.key.toLowerCase() === "a" && !recognizing) {
@@ -437,8 +405,6 @@ function createFloatingKey() {
       }
     }
   });
-
-  // Stop on keyup of "a" and process the voice command
   document.addEventListener("keyup", async (e) => {
     if (e.key.toLowerCase() === "a" && recognizing) {
       recognition.stop();
@@ -455,6 +421,10 @@ async function checkPopupStatus() {
       chrome.runtime.sendMessage({ action: "should-i-pop" }, resolve);
     });
     needPopup = response?.message === "yes";
+    // NEW: Force persistent floating ball if flag is "true"
+    if (sessionStorage.getItem("floatingBallVisible") === "true") {
+      needPopup = true;
+    }
     const container = document.getElementById("brain-floating-key-container");
     if (needPopup && !popupon) {
       popupon = true;
@@ -511,12 +481,33 @@ async function processDOMWithSpeech(target) {
     goToEndpoint("profile");
     return;
   }
-  // NEW: Added back/forward branch. Do not change any previous code.
+  // NEW: Back/forward navigation
   else if (lowerTarget.includes("go back")) {
     history.back();
     return;
   } else if (lowerTarget.includes("go front") || lowerTarget.includes("go forward")) {
     history.forward();
+    return;
+  }
+  // NEW: Floating ball visibility control
+  else if (lowerTarget.includes("stop voice") || lowerTarget.includes("close voice")) {
+    sessionStorage.setItem("floatingBallVisible", "false");
+    let container = document.getElementById("brain-floating-key-container");
+    if (container) {
+      container.style.display = "none";
+      console.log("Floating ball hidden as per voice command");
+    }
+    return;
+  } else if (lowerTarget.includes("start voice") || lowerTarget.includes("open voice")) {
+    sessionStorage.setItem("floatingBallVisible", "true");
+    let container = document.getElementById("brain-floating-key-container");
+    if (container) {
+      container.style.display = "";
+      console.log("Floating ball shown as per voice command");
+    } else {
+      createFloatingKey();
+      console.log("Floating ball created as per voice command");
+    }
     return;
   }
   
