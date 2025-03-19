@@ -288,7 +288,7 @@ function zoomOut() {
 }
 
 // ===================
-// Screenshot Function
+// Screenshot Function (unchanged)
 // ===================
 function takeScreenshot() {
   html2canvas(document.body).then(function(canvas) {
@@ -306,7 +306,7 @@ function takeScreenshot() {
 }
 
 // ===================
-// Endpoint Search Function (for "go to" commands)
+// Endpoint Search Function (for "go to" commands) (unchanged)
 // ===================
 function goToEndpoint(keyword) {
   keyword = preprocessString(keyword);
@@ -338,7 +338,7 @@ function goToEndpoint(keyword) {
 }
 
 // ===================
-// Speech Recognition & Floating Key Setup
+// Speech Recognition & Floating Key Setup (unchanged)
 // ===================
 async function initContentScript() {
   console.log("Content script loaded!");
@@ -509,6 +509,14 @@ async function processDOMWithSpeech(target) {
     return;
   } else if (lowerTarget.includes("profile")) {
     goToEndpoint("profile");
+    return;
+  }
+  // NEW: Added back/forward branch. Do not change any previous code.
+  else if (lowerTarget.includes("go back")) {
+    history.back();
+    return;
+  } else if (lowerTarget.includes("go front") || lowerTarget.includes("go forward")) {
+    history.forward();
     return;
   }
   
