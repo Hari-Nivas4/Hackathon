@@ -1,6 +1,6 @@
-
-
-// Inject the provided CSS with "brain" prefixed class names
+// ===================
+// CSS Injection
+// ===================
 (function injectCSS() {
   const css = `
 /* Container for the floating key */
@@ -58,50 +58,49 @@
   document.head.appendChild(style);
 })();
 
+// ===================
+// Global Variables & Initialization
+// ===================
 let popupon = false;
 let needPopup = false;
 const SUBMIT_ENDPOINT = "http://localhost:3000/submit-element";
+let currentZoom = 1; // Global zoom level variable
 
 if (document.readyState === "loading") {
   console.log("here");
-  
   document.addEventListener("DOMContentLoaded", initContentScript);
 } else {
   console.log("here");
   initContentScript();
 }
 
-
-
+// ===================
+// Navigation & History Overrides
+// ===================
 function handleNavigationChange() {
   console.log("Navigation detected!", window.location.href);
   checkPopupStatus();
 }
 
-// Navigation event listeners
 window.addEventListener("pageshow", handleNavigationChange);
 window.addEventListener("hashchange", handleNavigationChange);
 window.addEventListener("popstate", handleNavigationChange);
 
-// History state overrides
 const originalPushState = history.pushState;
 const originalReplaceState = history.replaceState;
-
 history.pushState = function (...args) {
   const result = originalPushState.apply(this, args);
   handleNavigationChange();
   return result;
 };
-
 history.replaceState = function (...args) {
   const result = originalReplaceState.apply(this, args);
   handleNavigationChange();
   return result;
 };
-
 window.addEventListener("load", handleNavigationChange);
 
-// DOM MutationObserver for URL changes
+// DOM MutationObserver to detect URL changes
 let lastUrl = location.href;
 new MutationObserver(() => {
   if (location.href !== lastUrl) {
@@ -110,6 +109,124 @@ new MutationObserver(() => {
   }
 }).observe(document.body, { childList: true, subtree: true });
 
+// ===================
+// New Helper Functions for Click Simulation
+// ===================
+
+// Levenshtein Distance: computes edit distance between two strings
+function levenshteinDistance(a, b) {
+  const an = a ? a.length : 0;
+  const bn = b ? b.length : 0;
+  if (an === 0) return bn;
+  if (bn === 0) return an;
+  const matrix = [];
+  for (let i = 0; i <= bn; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= an; j++) {
+    matrix[0][j] = j;
+  }
+  for (let i = 1; i <= bn; i++) {
+    for (let j = 1; j <= an; j++) {
+      if (b.charAt(i - 1).toLowerCase() === a.charAt(j - 1).toLowerCase()) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1, // substitution
+          matrix[i][j - 1] + 1,     // insertion
+          matrix[i - 1][j] + 1      // deletion
+        );
+      }
+    }
+  }
+  return matrix[bn][an];
+}
+
+// Similarity: returns a ratio between 0 and 1 (1 = exact match)
+function similarity(s1, s2) {
+  if (!s1 || !s2) return 0;
+  const distance = levenshteinDistance(s1, s2);
+  const maxLen = Math.max(s1.length, s2.length);
+  return 1 - distance / maxLen;
+}
+
+// Preprocess a string: lower-case, remove punctuation, extra spaces, etc.
+function preprocessString(str) {
+  return str.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim();
+}
+
+// simulateClick: finds the best matching clickable element based on keyword,
+// giving bonus if the computed cursor style is "pointer".
+function simulateClick(target) {
+  // Remove click/press/tap keywords and preprocess the remaining string.
+  const rawKeyword = target.replace(/click|press|tap/gi, "").trim();
+  const keyword = preprocessString(rawKeyword);
+  if (!keyword) {
+    console.log("No target keyword provided for click");
+    return;
+  }
+
+  const clickableSelectors = "a, button, input, div, span";
+  const elements = document.querySelectorAll(clickableSelectors);
+  
+  let bestMatch = { element: null, score: 0 };
+
+  elements.forEach((element) => {
+    // Skip hidden elements.
+    if (!element.offsetParent) return;
+    
+    // Check if the element's computed style has a pointer cursor.
+    const computed = window.getComputedStyle(element);
+    const hasPointer = computed.cursor && computed.cursor.includes("pointer");
+
+    // Preprocess texts from innerText, id, and class.
+    const texts = [
+      preprocessString(element.innerText || ""),
+      preprocessString(element.getAttribute("id") || ""),
+      preprocessString(element.getAttribute("class") || "")
+    ];
+    
+    texts.forEach((text) => {
+      let score = similarity(keyword, text);
+      // Add bonus if element appears clickable.
+      if (hasPointer) {
+        score += 0.1;
+      }
+      if (score > bestMatch.score) {
+        bestMatch = { element: element, score: score };
+      }
+    });
+  });
+
+  if (bestMatch.score >= 0.8 && bestMatch.element) {
+    console.log("Clicking element with score:", bestMatch.score, bestMatch.element);
+    bestMatch.element.click();
+  } else {
+    console.log("No matching clickable element found with at least 80% similarity for:", keyword);
+  }
+}
+
+// ===================
+// Screenshot Function
+// ===================
+function takeScreenshot() {
+  html2canvas(document.body).then(function(canvas) {
+    const imgData = canvas.toDataURL("image/png");
+    const link = document.createElement("a");
+    link.href = imgData;
+    link.download = "screenshot.png";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    console.log("Screenshot taken and downloaded!");
+  }).catch(function(err) {
+    console.error("Error taking screenshot:", err);
+  });
+}
+
+// ===================
+// Speech Recognition & Floating Key Setup
+// ===================
 async function initContentScript() {
   console.log("Content script loaded!");
   await checkPopupStatus();
@@ -127,47 +244,46 @@ async function initContentScript() {
 function createFloatingKey() {
   if (document.getElementById("brain-floating-key-container")) return;
 
-      const container = document.createElement("div");
-      container.id = "brain-floating-key-container";
-      document.body.appendChild(container);
+  const container = document.createElement("div");
+  container.id = "brain-floating-key-container";
+  document.body.appendChild(container);
 
-      const floatingKey = document.createElement("button");
-      floatingKey.className = "brain-voice-btn";
-      floatingKey.style.cssText = "left: 20px; right: auto;";
-      floatingKey.textContent = "";
-      container.appendChild(floatingKey);
+  const floatingKey = document.createElement("button");
+  floatingKey.className = "brain-voice-btn";
+  floatingKey.style.cssText = "left: 20px; right: auto;";
+  floatingKey.textContent = "";
+  container.appendChild(floatingKey);
 
-      const voiceOutput = document.createElement("div");
-      voiceOutput.id = "brain-voice-output";
-      voiceOutput.style.cssText = `
-      position: fixed;
-      top: 80px;
-      left: 10px;
-      background: rgba(0, 0, 0, 0.3);
-      padding: 10px;
-      border-radius: 5px;
-      max-width: 300px;
-      font-size: 14px;
-      font-weight: bold;
-      /* Set up the gradient for the text */
-      background-image: linear-gradient(45deg, red, orange, black, green, blue, indigo, violet);
-      background-size: 400% 400%;
-      -webkit-background-clip: text;
-      color: transparent;
-      animation: rainbowAnimation 5s linear infinite;
-    `;
-    container.appendChild(voiceOutput);
+  const voiceOutput = document.createElement("div");
+  voiceOutput.id = "brain-voice-output";
+  voiceOutput.style.cssText = `
+    position: fixed;
+    top: 80px;
+    left: 10px;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 10px;
+    border-radius: 5px;
+    max-width: 300px;
+    font-size: 14px;
+    font-weight: bold;
+    background-image: linear-gradient(45deg, red, orange, black, green, blue, indigo, violet);
+    background-size: 400% 400%;
+    -webkit-background-clip: text;
+    color: transparent;
+    animation: rainbowAnimation 5s linear infinite;
+  `;
+  container.appendChild(voiceOutput);
 
-    // Add keyframes for the rainbow animation
-    const style = document.createElement("style");
-    style.textContent = `
+  // Add keyframes for the rainbow animation
+  const style = document.createElement("style");
+  style.textContent = `
     @keyframes rainbowAnimation {
       0% { background-position: 0% 50%; }
       50% { background-position: 100% 50%; }
       100% { background-position: 0% 50%; }
     }
-    `;
-    document.head.appendChild(style);
+  `;
+  document.head.appendChild(style);
 
   if (!(window.SpeechRecognition || window.webkitSpeechRecognition)) {
     console.error("Voice recognition not supported");
@@ -194,7 +310,7 @@ function createFloatingKey() {
     console.error("Recognition error:", event.error);
   };
 
-  // When the "a" key is held down, start speech recognition
+  // Start speech recognition on keydown of "a"
   document.addEventListener("keydown", (e) => {
     if (e.repeat) return;
     if (e.key.toLowerCase() === "a" && !recognizing) {
@@ -209,13 +325,13 @@ function createFloatingKey() {
     }
   });
 
-  // When the "a" key is released, stop recognition and run the function
+  // Stop on keyup of "a" and process the voice command
   document.addEventListener("keyup", async (e) => {
     if (e.key.toLowerCase() === "a" && recognizing) {
       recognition.stop();
       recognizing = false;
       floatingKey.classList.remove("brain-active");
-      setTimeout(processDOMWithSpeech(transcript.trim()) , 100);
+      setTimeout(() => processDOMWithSpeech(transcript.trim()), 100);
     }
   });
 }
@@ -225,10 +341,8 @@ async function checkPopupStatus() {
     const response = await new Promise((resolve) => {
       chrome.runtime.sendMessage({ action: "should-i-pop" }, resolve);
     });
-
     needPopup = response?.message === "yes";
     const container = document.getElementById("brain-floating-key-container");
-
     if (needPopup && !popupon) {
       popupon = true;
       createFloatingKey();
@@ -241,12 +355,13 @@ async function checkPopupStatus() {
   }
 }
 
-let currentZoom = 1; // Global zoom level variable
-
+// ===================
+// Process DOM Commands Based on Voice Input
+// ===================
 async function processDOMWithSpeech(target) {
   console.log("Processing target:", target);
   if (!target) return;
-  const lowerTarget = target.toLowerCase(); // Define once for reuse
+  const lowerTarget = target.toLowerCase();
   
   if (
     lowerTarget.includes("scroll down") ||
@@ -266,8 +381,7 @@ async function processDOMWithSpeech(target) {
   ) {
     window.scrollBy({ top: -window.innerHeight, left: 0, behavior: "smooth" });
     return;
-  } 
-  else if (
+  } else if (
     lowerTarget.includes("scroll right") ||
     lowerTarget.includes("roll right") ||
     lowerTarget.includes("right") ||
@@ -276,8 +390,7 @@ async function processDOMWithSpeech(target) {
   ) {
     window.scrollBy({ top: 0, left: window.innerWidth, behavior: "smooth" });
     return;
-  } 
-  else if (
+  } else if (
     lowerTarget.includes("scroll left") ||
     lowerTarget.includes("roll left") ||
     lowerTarget.includes("left") ||
@@ -286,45 +399,39 @@ async function processDOMWithSpeech(target) {
   ) {
     window.scrollBy({ top: 0, left: -window.innerWidth, behavior: "smooth" });
     return;
-  } 
-  else if (lowerTarget.includes("zoom in") || lowerTarget.includes("zoomin") || lowerTarget.includes("jhoom in") || lowerTarget.includes("zoomIn") || lowerTarget.includes("room ain")) {
+  } else if (
+    lowerTarget.includes("zoom in") || lowerTarget.includes("zoomin") ||
+    lowerTarget.includes("jhoom in") || lowerTarget.includes("zoomIn") || lowerTarget.includes("room ain")
+  ) {
     currentZoom += 0.1;
     document.body.style.zoom = currentZoom;
     return;
-  } 
-  else if (lowerTarget.includes("zoom out")  || lowerTarget.includes("zoomout") || lowerTarget.includes("jhoom out") || lowerTarget.includes("zoomOut") || lowerTarget.includes("room out")) {
+  } else if (
+    lowerTarget.includes("zoom out") || lowerTarget.includes("zoomout") ||
+    lowerTarget.includes("jhoom out") || lowerTarget.includes("zoomOut") || lowerTarget.includes("room out")
+  ) {
     currentZoom = Math.max(0.1, currentZoom - 0.1);
     document.body.style.zoom = currentZoom;
     return;
-  }
-  else if (lowerTarget.includes("screenshot") || lowerTarget.includes("takeScreenshot") || lowerTarget.includes("captureScreenshot") || lowerTarget.includes("pleasetakescreenshot") || lowerTarget.includes("capture screen")) {  // Replace 'true' with your actual condition
+  } else if (
+    lowerTarget.includes("screenshot") || lowerTarget.includes("takeScreenshot") ||
+    lowerTarget.includes("captureScreenshot") || lowerTarget.includes("capture screen")
+  ) {
     takeScreenshot();
+    return;
+  } else if (
+    lowerTarget.includes("click") || lowerTarget.includes("press") || lowerTarget.includes("tap")
+  ) {
+    simulateClick(lowerTarget);
+    return;
   }
+  
   processVoiceCommand(target);
 }
-//////////////////////////////////////////////////////////////////////////////hari/////////////////////////////////////////////////////////////////////////////////
-function takeScreenshot() {
-  // Capture the entire document body using html2canvas
-  html2canvas(document.body).then(function(canvas) {
-    // Convert the canvas to a PNG data URL
-    const imgData = canvas.toDataURL("image/png");
-    
-    // Create a temporary link element
-    const link = document.createElement("a");
-    link.href = imgData;
-    link.download = "screenshot.png";
-    
-    // Append, trigger click, and remove the link to start download
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    console.log("Screenshot taken and downloaded!");
-  }).catch(function(err) {
-    console.error("Error taking screenshot:", err);
-  });
-}  
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// ===================
+// Process Voice Command via API Call (Tagger)
+// ===================
 async function processVoiceCommand(transcript) {
   console.log("Voice command:", transcript);
   
@@ -334,72 +441,42 @@ async function processVoiceCommand(transcript) {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      "key ":0,
+      "key ": 0,
       messages: [
         { role: "user", content: `<prompt > : ${transcript} : </prompt>
           <core point> This is going to be a prompt refiner that gives only the refined prompt only with zero extra text so that that can be directly feed to the ai for the process specified down</core point>
-          <Important note> I want you to refine the prompt to send it the ai , that is "tagger" works with the below specified principle </important note>
+          <Important note> I want you to refine the prompt to send it to the ai, that is "tagger", working with the following principle </important note>
           <principle of the tagger>
-          
-        ......<very important note> ........
-
-        make sure you extract only the necessary data from the prompt and neglect the nouns like "for me" "for him " "please" and etc and process only the command
-        and work accordingly , i expect high precesion and very high acceptance and take a little time and do it.
-        ........<importtant note> ........
-
-        example of how i want :
-        <user ask> : "can you please tell me the weather"
-        <actual answer i want you to return> : \`{"key" : -1}\`
-
-        <user ask> : can you please summarise the web for me 
-        <actual answer i want you to return> : \`{"key" : 2}\`
-
-        <user ask> : "could you please find me the menu"
-        <actual answer i want you to return> : \`{"key" : 3}\`
-
-        <user ask> : "give me the location of login page "
-        <actual answer i want you to return> : \`{"key" : 3}\`
-
-        <user ask> : "what is the weather like today"
-        <actual answer i want you to return> : \`{"key" : -1}\`
-
-        
-        ...........<pounts to ponder>.....................
-        
-        if a user asks for something that can be done just by iterating the current dom only and using ai by sending the dom means the ask of the user can be done there itself no need of endpoint navigation then key it as 2, 
-        this API call is for tagging purposes only , what you will be returning is going to be a json like stringified object enclosed with "\`" nothing else.
-
-        there are only three tags and an instruction .
-
-        the instruction would be , if a very unrelated query or any persional query or that is off the website scope like <how are you , or something else like that > you have to answer normally as you do and return \`{"key" : -1}\`.
-        if the user said some actions that can be done within the page where they are actualy in , you have to return \`{"key" : 2}\`
-
-        if any other querry return \`{"key" : 3}\`
-
-        another very important note , your output should contain only \`{"key" : <number>}\` and nothing else . like zero extra text , i want only that object. unless it is a very unrelated querry like i mentioned above . there you can reply normally and return -1 as key.
-
-        do well
-
-       
-
-
-        ..............<extra>........................
-        .............<WHAT AI IS USED FOR>.............
-        you are going to work as a tagger for now , the tag you provide will be given to an extension that would do some flow changes with it , so act accordingly .
-        .............<goal of the project> ..................
-        this is a extension which will be used for navigation purposes , the bigest
-        achievement that this extension has to  achieve is . if user said <"give me the menu of this hotel"> that voice will be converted to text (already done and thats how you recieved it) and have to 
-        tag his query <what this call meant for > and has to navigate to the menu that can be in any form such as <a href = "menu.html"> or <a id = "menu"> or <a class = "menu"> or any other form and has to click on that or any type of span div that has some text or table or svgs etc <can be aby element that html has> .
-          </principle of the tagger>
-        ` 
-      
-      }
+            ......<very important note> ........
+            Make sure you extract only the necessary data from the prompt and ignore extra words like "for me", "for him", "please", etc. Process only the command.
+            ........<important note> ........
+            Example:
+            <user ask> : "can you please tell me the weather"
+            <desired output> : \`{"key" : -1}\`
+            <user ask> : "can you please summarise the web for me"
+            <desired output> : \`{"key" : 2}\`
+            <user ask> : "could you please find me the menu"
+            <desired output> : \`{"key" : 3}\`
+            <user ask> : "give me the location of the login page"
+            <desired output> : \`{"key" : 3}\`
+            <user ask> : "what is the weather like today"
+            <desired output> : \`{"key" : -1}\`
+            ...........<points to ponder>.....................
+            If a user asks something that can be handled within the current DOM using AI without navigation, tag it as 2.
+            This API call is only for tagging purposes. Return a JSON-like string object enclosed in \` \` with no extra text.
+            For off-scope queries, reply normally and return \`{"key" : -1}\`.
+            Do well.
+            ..............<extra>........................
+            .............<WHAT AI IS USED FOR>.............
+            You are working as a tagger; the tag you provide will be used by an extension for navigation.
+            .............<goal of the project>..................
+            This extension is used for navigation. For example, if the user says "give me the menu of this hotel," convert the voice to text (already done) and then tag the query so that it can navigate accordingly.
+          </principle of the tagger>`
+        }
       ]
     })
-
   });
-  //response one for tagging purposes 
   
-  const data = await response.json(); // Parse the response data as JSON
-  console.log(data.content); // Log the parsed data
+  const data = await response.json();
+  console.log(data.content);
 }
