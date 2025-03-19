@@ -127,25 +127,47 @@ async function initContentScript() {
 function createFloatingKey() {
   if (document.getElementById("brain-floating-key-container")) return;
 
-  const container = document.createElement("div");
-  container.id = "brain-floating-key-container";
-  document.body.appendChild(container);
+      const container = document.createElement("div");
+      container.id = "brain-floating-key-container";
+      document.body.appendChild(container);
 
-  const floatingKey = document.createElement("button");
-  floatingKey.className = "brain-voice-btn";
-  floatingKey.style.cssText = "left: 20px; right: auto;";
-  floatingKey.textContent = "";
-  container.appendChild(floatingKey);
+      const floatingKey = document.createElement("button");
+      floatingKey.className = "brain-voice-btn";
+      floatingKey.style.cssText = "left: 20px; right: auto;";
+      floatingKey.textContent = "";
+      container.appendChild(floatingKey);
 
-  const voiceOutput = document.createElement("div");
-  voiceOutput.id = "brain-voice-output";
-  voiceOutput.style.cssText = `
-    position: fixed; top: 100px; left: 20px;
-    background: rgba(0, 0, 0, 0.7); color: white;
-    padding: 10px; border-radius: 5px;
-    max-width: 300px; font-size: 14px;
-  `;
-  container.appendChild(voiceOutput);
+      const voiceOutput = document.createElement("div");
+      voiceOutput.id = "brain-voice-output";
+      voiceOutput.style.cssText = `
+      position: fixed;
+      top: 80px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 10px;
+      border-radius: 5px;
+      max-width: 300px;
+      font-size: 14px;
+      font-weight: bold;
+      /* Set up the gradient for the text */
+      background-image: linear-gradient(45deg, red, orange, black, green, blue, indigo, violet);
+      background-size: 400% 400%;
+      -webkit-background-clip: text;
+      color: transparent;
+      animation: rainbowAnimation 5s linear infinite;
+    `;
+    container.appendChild(voiceOutput);
+
+    // Add keyframes for the rainbow animation
+    const style = document.createElement("style");
+    style.textContent = `
+    @keyframes rainbowAnimation {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    `;
+    document.head.appendChild(style);
 
   if (!(window.SpeechRecognition || window.webkitSpeechRecognition)) {
     console.error("Voice recognition not supported");
@@ -193,7 +215,7 @@ function createFloatingKey() {
       recognition.stop();
       recognizing = false;
       floatingKey.classList.remove("brain-active");
-      await processDOMWithSpeech(transcript.trim());
+      setTimeout(processDOMWithSpeech(transcript.trim()) , 100);
     }
   });
 }
@@ -220,7 +242,60 @@ async function checkPopupStatus() {
 }
 
 
+
+let currentZoom = 1; // Global zoom level variable
+
 async function processDOMWithSpeech(target) {
+  console.log("Processing target:", target);
+  if (!target) return;
+  const lowerTarget = target.toLowerCase(); // Define once for reuse
+  
+  if (
+    lowerTarget.includes("scroll down") ||
+    lowerTarget.includes("roll down") ||
+    lowerTarget.includes("down") ||
+    lowerTarget.includes("move down") ||
+    lowerTarget.includes("call down")
+  ) {
+    window.scrollBy({ top: window.innerHeight, left: 0, behavior: "smooth" });
+    return;
+  } else if (
+    lowerTarget.includes("scroll up") ||
+    lowerTarget.includes("roll up") ||
+    lowerTarget.includes("up") ||
+    lowerTarget.includes("move up") ||
+    lowerTarget.includes("call up")
+  ) {
+    window.scrollBy({ top: -window.innerHeight, left: 0, behavior: "smooth" });
+    return;
+  } else if (
+    lowerTarget.includes("scroll right") ||
+    lowerTarget.includes("roll right") ||
+    lowerTarget.includes("right") ||
+    lowerTarget.includes("move right") ||
+    lowerTarget.includes("call right")
+  ) {
+    window.scrollBy({ top: 0, left: window.innerWidth, behavior: "smooth" });
+    return;
+  } else if (
+    lowerTarget.includes("scroll left") ||
+    lowerTarget.includes("roll left") ||
+    lowerTarget.includes("left") ||
+    lowerTarget.includes("move left") ||
+    lowerTarget.includes("call left")
+  ) {
+    window.scrollBy({ top: 0, left: -window.innerWidth, behavior: "smooth" });
+    return;
+  } else if (lowerTarget.includes("zoom in") || lowerTarget.includes("zoomin") || lowerTarget.includes("jhoom in") || lowerTarget.includes("zoomIn") || lowerTarget.includes("room ain")) {
+    currentZoom += 0.1;
+    document.body.style.zoom = currentZoom;
+    return;
+  } else if (lowerTarget.includes("zoom out")  || lowerTarget.includes("zoomout") || lowerTarget.includes("jhoom out") || lowerTarget.includes("zoomOut") || lowerTarget.includes("room out")) {
+    currentZoom = Math.max(0.1, currentZoom - 0.1);
+    document.body.style.zoom = currentZoom;
+    return;
+  }
+  
   processVoiceCommand(target);
 }
 async function processVoiceCommand(transcript) {
