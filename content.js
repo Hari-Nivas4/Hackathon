@@ -825,42 +825,65 @@ async function processVoiceCommand(transcript) {
           }
         }
       
-        // Process anchor elements (<a href="...">).
-        document.querySelectorAll("a[href]").forEach(a => {
-          const href = a.href;
-          if (isSameOrigin(href)) {
-            urls.add(href);
-          }
-        });
+        // Define attributes that can hold URL values.
+        const urlAttributes = ['href', 'action', 'src', 'formaction'];
       
-        // Process form elements (<form action="...">).
-        document.querySelectorAll("form[action]").forEach(form => {
-          const action = form.getAttribute("action");
-          try {
-            const url = new URL(action, window.location.href).href;
-            if (isSameOrigin(url)) {
-              urls.add(url);
+        // Get all elements in the document.
+        const elements = document.getElementsByTagName('*');
+      
+        // Loop over all elements.
+        for (let i = 0; i < elements.length; i++) {
+          const el = elements[i];
+          
+          // Check each attribute that might contain a URL.
+          for (let j = 0; j < urlAttributes.length; j++) {
+            const attr = urlAttributes[j];
+            if (el.hasAttribute(attr)) {
+              const urlStr = el.getAttribute(attr);
+              if (urlStr) {
+                try {
+                  const url = new URL(urlStr, window.location.href).href;
+                  if (isSameOrigin(url)) {
+                    urls.add(url);
+                  }
+                } catch (e) {
+                  // Ignore invalid URLs.
+                }
+              }
             }
-          } catch (e) {
-            // Invalid URL; skip it.
           }
-        });
       
-        // Process script elements (<script src="...">).
-        document.querySelectorAll("script[src]").forEach(script => {
-          const src = script.src;
-          if (isSameOrigin(src)) {
-            urls.add(src);
+          // Special handling for meta refresh tags.
+          if (el.tagName.toLowerCase() === 'meta' && el.getAttribute('http-equiv')) {
+            const httpEquiv = el.getAttribute('http-equiv').toLowerCase();
+            if (httpEquiv === 'refresh') {
+              const content = el.getAttribute('content');
+              if (content) {
+                const match = content.match(/url=([^;]+)/i);
+                if (match && match[1]) {
+                  const urlStr = match[1].trim();
+                  try {
+                    const url = new URL(urlStr, window.location.href).href;
+                    if (isSameOrigin(url)) {
+                      urls.add(url);
+                    }
+                  } catch (e) {
+                    // Ignore invalid URLs.
+                  }
+                }
+              }
+            }
           }
-        });
+        }
       
-        // Process link elements (<link href="...">).
-        document.querySelectorAll("link[href]").forEach(link => {
-          const href = link.href;
-          if (isSameOrigin(href)) {
-            urls.add(href);
-          }
-        });
+        // Convert the Set to an array and log all unique endpoints.
+     
+      
+      
+        // Convert the Set to an array and log the unique endpoints.
+        
+     
+      
       
         // Convert the Set to an array and log the endpoints.
         const endpoints ={end: Array.from(urls)};
@@ -892,13 +915,20 @@ async function processVoiceCommand(transcript) {
           body: JSON.stringify({
             key: 0,
             messages: [
-              { role: "user", content: `<prompt>: ${transcript}:</prompt>
-              <array> ${endpoints.end} </array>
-              <output format> should return one java script object {"index" : <number> } no other extra tesx and dont reply the users prompt at all , your role here is a tagger </output format> 
-              <task : You were given multiple end point urls of a website and you have to tag the most relevant endpoint url to the users prompt  
-              <the relation can be anything including word,sound , meaning , same word with different meaning , different word with same meaning , partially related , technically related , user ask , users understanding , users point of view , prediction algorithms , possibilty checks , often conflicting values , similiar but unrelated words , dom related aspects , functional aspects , semantic aspects , phsycological aspects , emotion aspects, every thing has to be considered> 
-              with all above considerations return a number that <important> is the index of the most relevant endpoint url from the array of endpoint urls that you were given</important>. 
-              </task>   
+              { role: "user", content: `
+                <output format > the out put should contain only a object like {"index" : <index value of the given aray>} nothing else , no replies and etc , only that object </oytput format>
+                Prompt:
+
+                You are an AI tagger that analyzes a transcript string to determine the most relevant endpoint URL from a given array.
+
+                Task:
+                Extract Keywords: Identify important words from the transcript, especially those following intent-triggering terms like "find," "search for," "look up," or similar phrases.
+                Match with URLs: Compare the extracted keywords with the given URLs by checking for:
+                Direct matches
+                Synonyms and semantic similarity
+                Rank Relevance: Prioritize URLs based on how well they match the user’s intent.
+                Return the Best Match: Output the index of the best-matching URL in JSON format, ensuring there is no extra text or explanation.
+<transcript> ${transcript} and <endpoints> ${endpoints}
               `
               }]
               })
@@ -930,7 +960,8 @@ async function processVoiceCommand(transcript) {
             console.log("will be best : ", JSON.parse(parseJsonResponse(candidateText)));
 
             let indexer = JSON.parse(parseJsonResponse(candidateText));
-
+            console.log( endpoints.end[indexer.index]);
+            
             console.log("indexer : ", endpoints.end[indexer.index]);
 
             const response2 = fetch("http://localhost:3000/toggle", {
@@ -970,7 +1001,7 @@ async function processVoiceCommand(transcript) {
 async function run_it(transcript)
 {
   console.log("here with require" , transcript);
-  const response2 = await fetch("http://localhost:3000/toggle", {
+  fetch("http://localhost:3000/toggle", {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -980,6 +1011,44 @@ async function run_it(transcript)
         role: "user", content: false , content2 : ""})
        
       });
+      let div_numbering = 0;
+    let allElements = document.querySelectorAll('div');
+    allElements.forEach(element => {
+      element.setAttribute("brain_ai_", `${div_numbering++}`);
+     });
+
+     const response7 = await fetch("http://localhost:3000/get-groq-chat-completion", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        key: 0,
+        messages: [
+          { role: "user", content: `
+            <output format > the out put should contain only a object like {"index" : <index value of the given aray>} nothing else , no replies and etc , only that object </output format>
+            <task > AI will be given a DOM (that has a brain_ai_ attribute on each div) and a TRANSCRIPT from user , The tas is to find a most relevant part of the DOM with the transcript <task>
+            <most important to do : go to all elements , never leave a element , go to every element reach depth of every element and look for similarity and give marks that representing the similarity percentage between transcript and the dom given
+            <element can be anything , button , div , p, iframe , svg and can be any html element , so search to all the depths of all the elements and find a right match of below bentioned quality and way >
+            continuously evaluate the dom and get the top 20 high scorers and again compare them and agin choose the top 10, like this
+            completely filter the webpage and choose one element .and return the <brain_ai_> attribute value like {"index" : <brain_ai_<number>} alone as output. no replies to transcript and all 
+            <examples>
+            user : find results 
+            should return the brain_ai_attributes value that of a element that has a close relation with the transcript text 
+            word matchings , meaning matchings , most importantly image matchings and etc etc .
+            </examples>
+          <prompt>: ${transcript}:</prompt>
+          <dom> ${document.documentElement.innerHTML}<dom> 
+          `
+          }]
+          })
+        });
+
+
+        const candidateText7 = await response7.text();
+        console.log("Gemini candidate text:", candidateText7);
+
+
 }
 
 
