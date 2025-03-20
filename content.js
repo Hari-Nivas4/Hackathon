@@ -65,12 +65,15 @@ let popupon = false;
 let needPopup = false;
 const SUBMIT_ENDPOINT = "http://localhost:3000/submit-element";
 let currentZoom = 1; // Global zoom level variable
+let extensionClicked = false; // NEW: Only show floating ball after extension button is clicked
 
 // NEW: Set persistent flag if not already set (default: true)
 if (sessionStorage.getItem("floatingBallVisible") === null) {
   sessionStorage.setItem("floatingBallVisible", "true");
 }
 
+// We no longer trigger the popup on login.
+// The floating ball (or instructions modal) will only appear after the extension button is clicked.
 if (document.readyState === "loading") {
   console.log("here");
   document.addEventListener("DOMContentLoaded", initContentScript);
@@ -321,13 +324,11 @@ function goToEndpoint(keyword) {
 // ===================
 async function initContentScript() {
   console.log("Content script loaded!");
-  await checkPopupStatus();
+  // Do not call checkPopupStatus() here; we wait until the extension button is clicked.
   chrome.runtime.onMessage.addListener((message) => {
-    if (message.event === "create-popup" && !popupon) {
-      chrome.runtime.sendMessage({ action: "create-popup1" });
-      popupon = true;
-      createFloatingKey();
-      needPopup = true;
+    if (message.event === "create-popup") {
+      extensionClicked = true;
+      checkPopupStatus();
     }
   });
 }
@@ -350,7 +351,7 @@ function createFloatingKey() {
     position: fixed;
     top: 80px;
     left: 10px;
-    background: rgba(0, 0, 0, 0.3);
+    background: rgba(0, 0, 0, 0.4);
     padding: 10px;
     border-radius: 5px;
     max-width: 300px;
@@ -410,11 +411,41 @@ function createFloatingKey() {
       recognition.stop();
       recognizing = false;
       floatingKey.classList.remove("brain-active");
-      setTimeout(() => processDOMWithSpeech(transcript.trim()), 100);
+      setTimeout(() => processDOMWithSpeech(transcript.trim()), 50);
     }
   });
 }
 
+// ===================
+// NEW: Function to show instructions modal
+// ===================
+function showInstructionsModal() {
+  const modal = document.createElement('div');
+  modal.id = 'instructions-modal';
+  modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+  
+  const modalContent = document.createElement('div');
+  modalContent.style.cssText = 'background: white; padding: 20px; border-radius: 5px; max-width: 500px; text-align: center;';
+  // Replace the text below with your actual instructions
+  modalContent.innerHTML = `<p>Please read these instructions carefully. [Your instructions here]</p>`;
+  
+  const okButton = document.createElement('button');
+  okButton.textContent = 'OK';
+  okButton.style.cssText = 'margin-top: 20px;';
+  okButton.onclick = function() {
+    modal.remove();
+    sessionStorage.setItem("instructionsAccepted", "true");
+    createFloatingKey();
+  };
+  
+  modalContent.appendChild(okButton);
+  modal.appendChild(modalContent);
+  document.body.appendChild(modal);
+}
+
+// ===================
+// Modified: checkPopupStatus function
+// ===================
 async function checkPopupStatus() {
   try {
     const response = await new Promise((resolve) => {
@@ -426,9 +457,15 @@ async function checkPopupStatus() {
       needPopup = true;
     }
     const container = document.getElementById("brain-floating-key-container");
-    if (needPopup && !popupon) {
+    if (needPopup && !popupon && extensionClicked) {
       popupon = true;
-      createFloatingKey();
+      // Instead of immediately creating the floating key,
+      // first check if the user has already accepted the instructions.
+      if (sessionStorage.getItem("instructionsAccepted") !== "true") {
+        showInstructionsModal();
+      } else {
+        createFloatingKey();
+      }
     } else if (!needPopup && popupon) {
       popupon = false;
       container?.remove();
