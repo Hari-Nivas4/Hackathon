@@ -20,12 +20,10 @@ app.use(cors());
 app.use(express.json({ limit: "100mb" }));
 app.use(express.text({ type: "/", limit: "100mb" }));
 
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+
 let should_i_popUp = "no";
 
-const Groq = require("groq-sdk");
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY || "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",
-});
 
 // Endpoint to get the current popup state.
 app.get("/should-i-pop", (req, res) => {
@@ -50,12 +48,7 @@ app.post("/ai-call-for-tag", (req, res) => {
 });
 
 // Function to get the Groq chat completion.
-async function getGroqChatCompletion(messages) {
-  return groq.chat.completions.create({
-    messages: messages,
-    model: "qwen-2.5-32b",
-  });
-}
+
 
 
 app.post("/compress-dom", (req, res) => {
@@ -76,37 +69,35 @@ app.post("/compress-dom", (req, res) => {
 // Endpoint to get the Groq chat completion.
 app.post("/get-groq-chat-completion", async (req, res) => {
   try {
-    // Ensure req.body.messages is an array
-    
-    if(req.key === 0)
-    {
-      req.body = req.body;
-    }
+    // Extract messages array from the request body.
     const { messages } = req.body;
-
-    if (!Array.isArray(messages)) {
-      console.warn("Invalid messages format received, using default.");
-      messages = [
-        {
-          role: "user",
-          content: "Explain the importance of fast language models",
-        },
-      ];
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ error: "Invalid messages format; expected a non-empty array" });
     }
 
-    console.log("Messages sent to Groq:", messages);
+    // Combine all messages' content into one prompt string.
+    const prompt = messages.map(msg => msg.content).join("\n");
+    console.log("Received prompt:", prompt);
 
-    const chatCompletion = await getGroqChatCompletion(messages);
-    console.log("response from groq", chatCompletion.choices[0]?.message?.content || "");
-    
-    res.json({
-      content: chatCompletion.choices[0]?.message?.content || "",
-    });
+    // Initialize the GoogleGenerativeAI client.
+    const genAI = new GoogleGenerativeAI("AIzaSyD_P_nTgaYqnqI-6pnzStsUPpYtJfSXJOw");
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+    // Generate content using the Gemini model.
+    const result = await model.generateContent(prompt);
+    const candidateText = result.response.text(); // Assuming this returns plain text
+
+    console.log("Response from Gemini:", candidateText);
+    res.send(candidateText);
   } catch (error) {
-    console.error("Error getting chat completion:", error);
-    res.status(500).json({ id:111,error: "Failed to get chat completion" });
+    console.error(
+      "Error in /get-groq-chat-completion:",
+      error.response ? error.response.data : error.message
+    );
+    res.status(500).json({ error: "Failed to generate content" });
   }
 });
+
 
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`);

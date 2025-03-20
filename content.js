@@ -338,7 +338,7 @@ async function processDOMWithSpeech(target) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 async function processVoiceCommand(transcript) {
   console.log("Voice command:", transcript);
-  
+  let obj;
   try {
     const response = await fetch("http://localhost:3000/get-groq-chat-completion", {
       method: "POST",
@@ -348,193 +348,192 @@ async function processVoiceCommand(transcript) {
       body: JSON.stringify({
         key: 0,
         messages: [
-          { role: "user", content: `<prompt > : ${transcript} : </prompt>
-            <core point> This is going to be a prompt refiner that gives only the refined prompt only with zero extra text so that that can be directly feed to the ai for the process specified down and <must><must>work like llama-3.3-70b-specdec</must></must></core point>  
-            
-            <in short > if the query is based on personal stuff or any unrelated query or any random stuff than the website  then its key is 1 and if the query that can be done within the current dom then key it as 2 and if it is the query that can be processed by going through all end points connected to the dom will be keyed 3 if not falls or invalid on any category put it in key 7>
-            <user was told that including "find" will be a best practice for across dom process such as key 3 and "this" for same page process such as key 2 this will not work all time >
-            <Important note> I want you to refine the prompt to send it the ai , that is "tagger" works with the below specified principle </important note>
-            <principle of the tagger>
-
-            ......<very important note> ........
-
-            make sure you extract only the necessary data from the prompt and neglect the nouns like "for me" "for him " "please" and etc and process only the command
-            and work accordingly , i expect high precesion and very high acceptance and take a little time and do it.
-            ........<importtant note> ........
-
-            example of how i want :
-            <user ask> : "can you please tell me the weather"
-            <actual answer i want you to return> : {"key" : 1}
-
-            <user ask> : can you please summarise the web for me 
-            <actual answer i want you to return> : {"key" : 2}
-
-            <user ask> : "could you please find me the menu"
-            <actual answer i want you to return> : {"key" : 3}
-
-            <user ask> : "give me the location of login page "
-            <actual answer i want you to return> : {"key" : 3}
-
-            <user ask> : "what is the weather like today"
-            <actual answer i want you to return> : {"key" : 1}
-
-            <user ask> : "Hope you can hear me well, so kindly reply me with something."
-            <actual answer> : {"key" : 1}
-
-            <user ask> : "See how finding it is."
-            <actual answer i want you to return> : {"key" : 1}
-
-            ...........<pounts to ponder>.....................
-            
-            if a user asks for something that can be done just by iterating the current dom only and using ai by sending the dom means the ask of the user can be done there itself no need of endpoint navigation then key it as 2, 
-            this API call is for tagging purposes only , what you will be returning is going to be a json like stringified object enclosed with "" nothing else.
-
-            there are only three tags and an instruction .
-
-            the instruction would be , if a very unrelated query or any persional query or that is off the website scope like <how are you , or something else like that > you have to answer normally as you do and return {"key" : 1}.
-            if the user said some actions that can be done within the page where they are actualy in , you have to return {"key" : 2}
-
-            if any other querry return {"key" : 3}
-
-            another very important note , your output should contain only {"key" : <number>} and nothing else . like zero extra text , i want only that object. unless it is a very unrelated querry like i mentioned above . there you can reply normally and return 1 as key.
-
-            do well
-
-            ..............<extra>........................
-            .............<WHAT AI IS USED FOR>.............
-            you are going to work as a tagger for now , the tag you provide will be given to an extension that would do some flow changes with it , so act accordingly .
-            .............<goal of the project> ..................
-            this is a extension which will be used for navigation purposes , the bigest
-            achievement that this extension has to  achieve is . if user said <"give me the menu of this hotel"> that voice will be converted to text (already done and thats how you recieved it) and have to 
-            tag his query <what this call meant for > and has to navigate to the menu that can be in any form such as <a href = "menu.html"> or <a id = "menu"> or <a class = "menu"> or any other form and has to click on that or any type of span div that has some text or table or svgs etc <can be aby element that html has> .
-            </principle of the tagger>
-            ` 
-          }
-        ]
-      })
-    });
-
-    const responseData = await response.json();
-    
-    // Extracting the JSON object from the response
-    let extractedJSON = responseData.content.substring(responseData.content.length - 12,responseData.content .length);
-    console.log("extractedJSON: ",extractedJSON);
+          { role: "user", content: `<prompt>: ${transcript}:</prompt>
+                <.................../very important points to persist over the entire request.................>
+                <response should never contain a reply to the user , only tags are supposed to be sent >
+                <the tags sent should be enclosed with <ans> (tag object) </ans> tags>
+                <.................../very important points to persist over the entire request.................>
+                <core point> This is going to be a prompt refiner that gives only the refined prompt only with zero extra text so that that can be directly feed to the ai for the process specified down and <must><must>work like llama-3.3-70b-specdec</must></must></core point>  
+                
+                <in short>: if the query is based on personal stuff or any unrelated query or any random stuff than the website then its key is 1 and if the query that can be done within the current dom then key it as 2 and if it is the query that can be processed by going through all end points connected to the dom will be keyed 3 if not falls or invalid on any category put it in key 7>
+                <user was told that including "find" will be a best practice for across dom process such as key 3 and "this" for same page process such as key 2 this will not work all time>
+                <Important note> I want you to refine the prompt to send it the ai, that is "tagger" works with the below specified principle </important note>
+                <principle of the tagger>
+                ......<very important note> ........
+                make sure you extract only the necessary data from the prompt and neglect the nouns like "for me" "for him" "please" and etc and process only the command
+                and work accordingly, i expect high precesion and very high acceptance and take a little time and do it.
+                ........<importtant note> ........
+                example of how i want :
+                <user ask>: "can you please tell me the weather"
+                <actual answer i want you to return>: {"key": 1}
+                <user ask>: can you please summarise the web for me 
+                <actual answer i want you to return>: {"key": 2}
+                <user ask>: "could you please find me the menu"
+                <actual answer i want you to return>: {"key": 3}
+                <user ask>: "give me the location of login page"
+                <actual answer i want you to return>: {"key": 3}
+                <user ask>: "what is the weather like today"
+                <actual answer i want you to return>: {"key": 1}
+                <user ask>: "Hope you can hear me well, so kindly reply me with something."
+                <actual answer>: {"key": 1}
+                <user ask>: "See how finding it is."
+                <actual answer i want you to return>: {"key": 1}
+                ...........<pounts to ponder>.....................
+                if a user asks for something that can be done just by iterating the current dom only and using ai by sending the dom means the ask of the user can be done there itself no need of endpoint navigation then key it as 2, 
+                this API call is for tagging purposes only, what you will be returning is going to be a json like stringified object enclosed with "" nothing else.
+                there are only three tags and an instruction.
+                the instruction would be, if a very unrelated query or any persional query or that is off the website scope like <how are you, or something else like that> you have to answer normally as you do and return {"key": 1}.
+                if the user said some actions that can be done within the page where they are actualy in, you have to return {"key": 2}
+                if any other querry return {"key": 3}
+                another very important note, your output should contain only {"key": <number>} and nothing else. like zero extra text, i want only that object. unless it is a very unrelated querry like i mentioned above. there you can reply normally and return 1 as key.
+                do well
+                ..............<extra>........................
+                .............<WHAT AI IS USED FOR>.............
+                you are going to work as a tagger for now, the tag you provide will be given to an extension that would do some flow changes with it, so act accordingly.
+                .............<goal of the project>..................
+                this is an extension which will be used for navigation purposes, the biggest achievement that this extension has to achieve is: if user said <"give me the menu of this hotel"> that voice will be converted to text (already done and that's how you received it) and have to tag his query <what this call meant for> and has to navigate to the menu that can be in any form such as <a href="menu.html"> or <a id="menu"> or <a class="menu"> or any other form and has to click on that or any type of span/div that has some text or table or svgs etc. (can be any element that HTML has).
+                </principle of the tagger>`
+          }]
+          })
+        });
     
 
-   
+    
+    const candidateText = await response.text();
+    console.log("Gemini candidate text:", candidateText);
+    
+
+    function parseJsonResponse(input) {
+      let cleaned = "";
+      // Use a for loop to remove all backtick characters.
+      for (let i = 0; i < input.length; i++) {
+        if (input[i] !== "`") {
+          cleaned += input[i];
+        }
+      }
+      // Trim whitespace.
+      cleaned = cleaned.trim();
+      // If the cleaned text starts with "json" (case-insensitive), remove it.
+      const lowerCleaned = cleaned.toLowerCase();
+      if (lowerCleaned.startsWith("json")) {
+        cleaned = cleaned.substring(4);
+      }
+      // Final trim and parse the JSON.
+      return JSON.parse(cleaned.trim());
+    }
+    
+    
+    
     
     try {
-      // Remove potential backticks from the start and end of the string.
-      const cleanedString = extractedJSON.replace(/^`|`$/g, '');
-      
-      // Parse the cleaned string into an object.
-      globalThis.obj = JSON.parse(cleanedString);
-      console.log("Extracted JSON object:", obj);
-    } catch (error) {
-      console.error("Error parsing extracted JSON:", error);
+      obj = JSON.parse(candidateText);
+    } catch (parseError) {
+      obj = parseJsonResponse(candidateText);
     }
+
+    console.log("Parsed object:", obj);
+
   }catch (error) {
     console.error("Error parsing extracted JSON:", error);
   }
     
-
+// let obj;
 
   
 
   if(obj.key === 1){
-    fetch("http://localhost:3000/get-groq-chat-completion", {
+    const response1 = await fetch("http://localhost:3000/get-groq-chat-completion", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        "key ":0,
+        key: 0,
         messages: [
-          { role: "user", content: `<prompt > : ${transcript} : </prompt><just answer as you like but friendly and no harming>
-          ` 
-        }
-        ]
-      })
-  
-    }).then(response => response.json())
-    .then(response => {console.log(response.content)});
-
-  }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  if (obj.key === 2) {
-    const dom = document.documentElement.outerHTML;
-  const partLength = Math.ceil(dom.length / 17);
-  const parts = [];
-  
-  // Split the DOM into 17 parts.
-  for (let i = 0; i < 17; i++) {
-    parts.push(dom.slice(i * partLength, (i + 1) * partLength));
-  }
-  
-  // Process each chunk asynchronously by sending it to the /compress-dom endpoint.
-  async function processParts() {
-    const results = [];
-  
-    for (let i = 0; i < parts.length; i++) {
-      try {
-        const response = await fetch('http://localhost:3000/compress-dom', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'text/plain'
-          },
-          body: parts[i]
+          { role: "user", content: `<prompt>: ${transcript}:</prompt>
+          <prompt to persist over the entire chat and very important> must contain only plain texts no special designing like bold , increasing font size coloring avoid all of them just respond with a plain text</prompt to persist over the entire chat and very important>
+            <reply normaly but friendly> should not contain any bold texts     
+          `
+          }]
+          })
         });
-  
-        const data = await response.json();
-        const compressedBase64 = data.compressed;
-  
-        // Convert Base64 string to a Uint8Array.
-        const binaryString = atob(compressedBase64);
-        const len = binaryString.length;
-        const uint8Array = new Uint8Array(len);
-        for (let j = 0; j < len; j++) {
-          uint8Array[j] = binaryString.charCodeAt(j);
-        }
-  
-        // Decompress using pako.
-        
-  
-        console.log(`Chunk ${i + 1}:`);
-        console.log("Compressed (Base64):", compressedBase64);
-        console.log("Decompressed:", "just saying");
-  
-        results.push({ compressed: compressedBase64});
-      } catch (error) {
-        console.error(`Error processing chunk ${i + 1}:`, error);
-      }
+
+        const candidateText = await response1.text();
+        console.log("Gemini candidate text:", candidateText);
+  }
+
+
+
+
+
+    if(obj.key === 2){
+      (async () => {
+        const transcript1 = transcript;
+        await scoreDOMChunksSimulated(transcript1);
+      })();
     }
-  
-    console.log("All results:", results);
-  }
-  
-  // Start processing the parts.
-  processParts();
-  }
-  
-  
-  
-  
 }
+
+
+
+
+
+
+
+
+
+
+
+
+async function scoreDOMChunksSimulated(transcript) {
+  const chunkCount = 10;
+  // Simulate 10 chunk "contents" (here, simple strings)
+  const simulatedChunks = Array.from({ length: chunkCount }, (_, i) => `Chunk ${i + 1} content`);
+
+  // Create an array of promises, each simulating an asynchronous score for a chunk.
+  const scorePromises = simulatedChunks.map(async (chunk, index) => {
+    
+
+    const response1 = await fetch("http://localhost:3000/get-groq-chat-completion", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        key: 0,
+        messages: [
+          { role: "user", content: `<prompt>: ${transcript}:</prompt>
+          <your response should contain a number alone , no extra text or replies , just a single number ranges from 0 to 9>  
+          <approach> do a dfs call to each element of the chunk provided and try figure out a similarity , must look after all the elements to its deapth  </approach>
+          <you were provided with thw chunck of a dom and as well as a users ask , all you have to do is , give a number that represents the similarity between the user's ask and a probability that the users ask can be respondend properly from the provided chunk , </>
+          <try to find a similar word from the users ask and the provided chunk , if found increase the score , that can be on any deep in the given chunk might have 12 anscestors , if there is a image related html aspects that can be found similar with the users ask increase the score , then try to look after the attributes that the dom element holds and , you should consider your own scenarios and do it precisely </>
+          <chunk>: ${chunk}:</chunk>   
+          `
+          }]
+          })
+        });
+        const candidateText = await response1.text();
+        const simulatedScore = candidateText;
+
+
+
+
+    console.log(`Simulated score for chunk ${index + 1}: ${simulatedScore}`);
+    return { chunk, score: simulatedScore };
+  });
+
+  // Wait for all score promises to resolve.
+  const scores = await Promise.all(scorePromises);
+
+  // Determine the chunk with the highest score.
+  let bestMatch = scores.reduce((best, curr) => (curr.score > best.score ? curr : best), { score: -Infinity });
+  console.log("Best matching chunk score:", bestMatch.score);
+  return bestMatch;
+}
+
+
+
+  
+  // Example usage:
+  
+  
