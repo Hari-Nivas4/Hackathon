@@ -52,6 +52,19 @@
 @keyframes brain-spin-glow {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+/* Style for media label overlays */
+.media-label-overlay {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  background: rgba(255,0,0,0.7);
+  color: white;
+  padding: 2px 5px;
+  font-size: 12px;
+  z-index: 10000;
+  border-radius: 3px;
 }`;
   const style = document.createElement("style");
   style.textContent = css;
@@ -65,15 +78,20 @@ let popupon = false;
 let needPopup = false;
 const SUBMIT_ENDPOINT = "http://localhost:3000/submit-element";
 let currentZoom = 1; // Global zoom level variable
-let extensionClicked = false; // NEW: Only show floating ball after extension button is clicked
+// Instead of a volatile variable, store extension click flag in sessionStorage
+if (!sessionStorage.getItem("extensionClicked")) {
+  sessionStorage.setItem("extensionClicked", "false");
+}
+
+// NEW: Global array to store labeled media elements mapping
+let labeledMediaElements = [];
 
 // NEW: Set persistent flag if not already set (default: true)
 if (sessionStorage.getItem("floatingBallVisible") === null) {
   sessionStorage.setItem("floatingBallVisible", "true");
 }
 
-// We no longer trigger the popup on login.
-// The floating ball (or instructions modal) will only appear after the extension button is clicked.
+// Do not trigger popup on login; wait for extension click.
 if (document.readyState === "loading") {
   console.log("here");
   document.addEventListener("DOMContentLoaded", initContentScript);
@@ -87,7 +105,11 @@ if (document.readyState === "loading") {
 // ===================
 function handleNavigationChange() {
   console.log("Navigation detected!", window.location.href);
-  checkPopupStatus();
+  // On navigation, if extension was clicked, re-run our popup and labeling logic.
+  if (sessionStorage.getItem("extensionClicked") === "true") {
+    checkPopupStatus();
+    labelMediaElements();
+  }
 }
 
 window.addEventListener("pageshow", handleNavigationChange);
@@ -159,7 +181,40 @@ function preprocessString(str) {
   return str.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim();
 }
 
+// NEW: Helper to convert common number words to digits.
+function convertWordToNumber(word) {
+  const mapping = {
+    "one": "1",
+    "two": "2",
+    "three": "3",
+    "four": "4",
+    "five": "5",
+    "six": "6",
+    "seven": "7",
+    "eight": "8",
+    "nine": "9",
+    "ten": "10"
+  };
+  return mapping[word.toLowerCase()] || word;
+}
+
 function simulateClick(target) {
+  // Check if command contains a numbered media element.
+  let numMatch = target.toLowerCase().match(/click number (\w+)/);
+  if (numMatch) {
+    let numStr = convertWordToNumber(numMatch[1]);
+    const num = parseInt(numStr);
+    if (!isNaN(num)) {
+      const mediaObj = labeledMediaElements.find(item => item.number === num);
+      if (mediaObj && mediaObj.element) {
+        console.log("Clicking labeled media element number", num, mediaObj.element);
+        mediaObj.element.click();
+        return;
+      }
+    }
+  }
+  
+  // Default click simulation for other elements.
   const rawKeyword = target.replace(/click|press|tap/gi, "").trim();
   const keyword = preprocessString(rawKeyword);
   if (!keyword) {
@@ -194,6 +249,38 @@ function simulateClick(target) {
   } else {
     console.log("No matching clickable element found with at least 80% similarity for:", keyword);
   }
+}
+
+// ===================
+// Label Media Elements Function
+// ===================
+function labelMediaElements() {
+  // Remove any previous labels.
+  labeledMediaElements.forEach(item => {
+    if (item.overlay && item.overlay.parentElement) {
+      item.overlay.parentElement.removeChild(item.overlay);
+    }
+  });
+  labeledMediaElements = [];
+  
+  let counter = 1;
+  const selectors = "iframe, img, video";
+  const elements = document.querySelectorAll(selectors);
+  elements.forEach((element) => {
+    // Label every element regardless of offsetParent.
+    let overlay = document.createElement('div');
+    overlay.className = 'media-label-overlay';
+    overlay.textContent = counter;
+    // Ensure the element has relative positioning for the overlay to attach.
+    const style = window.getComputedStyle(element);
+    if (style.position === 'static') {
+      element.style.position = 'relative';
+    }
+    // Append overlay to the element's parent.
+    element.parentElement.appendChild(overlay);
+    labeledMediaElements.push({ number: counter, element: element, overlay: overlay });
+    counter++;
+  });
 }
 
 // ===================
@@ -324,10 +411,15 @@ function goToEndpoint(keyword) {
 // ===================
 async function initContentScript() {
   console.log("Content script loaded!");
-  // Do not call checkPopupStatus() here; we wait until the extension button is clicked.
+  // On load, if extension was previously clicked, re-activate the popup and label media.
+  if (sessionStorage.getItem("extensionClicked") === "true") {
+    checkPopupStatus();
+    labelMediaElements();
+  }
   chrome.runtime.onMessage.addListener((message) => {
     if (message.event === "create-popup") {
-      extensionClicked = true;
+      sessionStorage.setItem("extensionClicked", "true");
+      labelMediaElements();
       checkPopupStatus();
     }
   });
@@ -417,7 +509,7 @@ function createFloatingKey() {
 }
 
 // ===================
-// NEW: Function to show instructions modal
+// NEW: Function to show instructions modal (with cross button)
 // ===================
 function showInstructionsModal() {
   const modal = document.createElement('div');
@@ -425,9 +517,18 @@ function showInstructionsModal() {
   modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
   
   const modalContent = document.createElement('div');
-  modalContent.style.cssText = 'background: white; padding: 20px; border-radius: 5px; max-width: 500px; text-align: center;';
+  modalContent.style.cssText = 'background: white; padding: 20px; border-radius: 5px; max-width: 500px; text-align: center; position: relative;';
   // Replace the text below with your actual instructions
   modalContent.innerHTML = `<p>Please read these instructions carefully. [Your instructions here]</p>`;
+  
+  // Cross button to dismiss modal
+  const closeButton = document.createElement('span');
+  closeButton.textContent = '✕';
+  closeButton.style.cssText = 'position: absolute; top: 10px; right: 10px; cursor: pointer; font-size: 18px;';
+  closeButton.onclick = function() {
+    modal.remove();
+  };
+  modalContent.appendChild(closeButton);
   
   const okButton = document.createElement('button');
   okButton.textContent = 'OK';
@@ -452,15 +553,15 @@ async function checkPopupStatus() {
       chrome.runtime.sendMessage({ action: "should-i-pop" }, resolve);
     });
     needPopup = response?.message === "yes";
-    // NEW: Force persistent floating ball if flag is "true"
+    // Force persistent floating ball if flag is "true"
     if (sessionStorage.getItem("floatingBallVisible") === "true") {
       needPopup = true;
     }
     const container = document.getElementById("brain-floating-key-container");
-    if (needPopup && !popupon && extensionClicked) {
+    // Check sessionStorage flag for extension click
+    if (needPopup && !popupon && sessionStorage.getItem("extensionClicked") === "true") {
       popupon = true;
-      // Instead of immediately creating the floating key,
-      // first check if the user has already accepted the instructions.
+      // First, check if instructions have been accepted.
       if (sessionStorage.getItem("instructionsAccepted") !== "true") {
         showInstructionsModal();
       } else {
@@ -483,6 +584,16 @@ async function processDOMWithSpeech(target) {
   if (!target) return;
   const lowerTarget = target.toLowerCase();
   
+  // If the user says "click cross", trigger the close of the instructions modal.
+  if (lowerTarget.includes("click cross")) {
+    const closeBtn = document.querySelector('#instructions-modal span');
+    if (closeBtn) {
+      console.log("Clicking cross button to close instructions modal");
+      closeBtn.click();
+      return;
+    }
+  }
+  
   if (lowerTarget.includes("scroll down") || lowerTarget.includes("roll down") ||
       lowerTarget.includes("down") || lowerTarget.includes("move down") || lowerTarget.includes("call down")) {
     scrollDown();
@@ -500,15 +611,15 @@ async function processDOMWithSpeech(target) {
     scrollLeft();
     return;
   } else if (lowerTarget.includes("zoom in") || lowerTarget.includes("zoomin") ||
-             lowerTarget.includes("jhoom in") || lowerTarget.includes("zoomIn") || lowerTarget.includes("room ain")) {
+             lowerTarget.includes("jhoom in") || lowerTarget.includes("zoomin") || lowerTarget.includes("room ain")) {
     zoomIn();
     return;
   } else if (lowerTarget.includes("zoom out") || lowerTarget.includes("zoomout") ||
-             lowerTarget.includes("jhoom out") || lowerTarget.includes("zoomOut") || lowerTarget.includes("room out")) {
+             lowerTarget.includes("jhoom out") || lowerTarget.includes("zoomout") || lowerTarget.includes("room out")) {
     zoomOut();
     return;
-  } else if (lowerTarget.includes("screenshot") || lowerTarget.includes("takeScreenshot") ||
-             lowerTarget.includes("captureScreenshot") || lowerTarget.includes("capture screen")) {
+  } else if (lowerTarget.includes("screenshot") || lowerTarget.includes("takescreenshot") ||
+             lowerTarget.includes("capturescreenshot") || lowerTarget.includes("capture screen")) {
     takeScreenshot();
     return;
   } else if (lowerTarget.includes("click") || lowerTarget.includes("press") || lowerTarget.includes("tap")) {
@@ -518,7 +629,7 @@ async function processDOMWithSpeech(target) {
     goToEndpoint("profile");
     return;
   }
-  // NEW: Back/forward navigation
+  // Back/forward navigation
   else if (lowerTarget.includes("go back")) {
     history.back();
     return;
@@ -526,7 +637,7 @@ async function processDOMWithSpeech(target) {
     history.forward();
     return;
   }
-  // NEW: Floating ball visibility control
+  // Floating ball visibility control
   else if (lowerTarget.includes("stop voice") || lowerTarget.includes("close voice")) {
     sessionStorage.setItem("floatingBallVisible", "false");
     let container = document.getElementById("brain-floating-key-container");
