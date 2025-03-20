@@ -953,7 +953,7 @@ async function processVoiceCommand(transcript) {
             //   },
             //   body: JSON.stringify({
                 
-            //       role: "user", content: ${endpoints.end[indexer.index]}})
+            //       role: "user", content: `${endpoints.end[indexer.index]}`})
                  
             //     });
 
@@ -983,5 +983,8 @@ async function run_it(transcript)
 }
 
 
+  
+  // Example usage:
+  
   
   // Example usage:
