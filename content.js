@@ -526,12 +526,51 @@ function createFloatingKey() {
 function showInstructionsModal() {
   const modal = document.createElement('div');
   modal.id = 'instructions-modal';
-  modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+  modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 10000;';
   
   const modalContent = document.createElement('div');
-  modalContent.style.cssText = 'background: white; padding: 20px; border-radius: 5px; max-width: 500px; text-align: center;';
-  // Replace with your actual instructions
-  modalContent.innerHTML = `<p>Please read these instructions carefully. [Your instructions here]</p>`;
+  modalContent.style.cssText = 'background: white; padding: 20px; border-radius: 12px; max-width: 500px; max-height: 500px; text-align: center; box-shadow: 0px 8px 16px rgba(0, 0, 0, 0.2);';
+  
+  modalContent.innerHTML = `<div style="
+    background: linear-gradient(135deg, #4a90e2, #9013fe); /* Modern gradient */
+    border: 2px solid #ddd;
+    border-radius: 15px;
+    padding: 16px;
+    font-family: 'Georgia', serif;
+    max-width: 450px;
+    color: white;
+    box-shadow: 0px 5px 15px rgba(0, 0, 0, 0.3);
+  ">
+    <p style="margin-top: 0; font-weight: bold; font-size: 1.2em;">
+      Please read these instructions carefully
+    </p>
+    <h4 style="
+      margin-bottom: 10px;
+      margin-top: 10px;
+      font-size: 1.4em;
+      color: #ffcc00; /* Gold for contrast */
+    ">
+      Voice Command Actions:
+    </h4>
+    <ul style="margin: 0; padding-left: 20px; line-height: 1.5; list-style-type: square;">
+      <li style="margin-bottom: 10px;">
+        <p>User can scroll, zoom, start/stop voice, navigate pages using voice commands.</p>
+      </li>
+      <li style="margin-bottom: 10px;">
+        <p>Say <span style="color:gold; font-weight:bold;">"Find"</span> followed by the Finder name to locate an element.</p>
+      </li>
+      <li style="margin-bottom: 10px;">
+        <p>Say <span style="color:gold; font-weight:bold;">"TakeScreenshot"</span> to capture the page.</p>
+      </li>
+      <li style="margin-bottom: 10px;">
+        <p>Say <span style="color:gold; font-weight:bold;">"Click"</span> followed by the element name to interact.</p>
+      </li>
+    </ul>
+    <p style="color: yellow; font-weight: bold;">Hold 'A' to start recording voice commands.</p>
+    <p style="color: yellow; font-weight: bold;">Release 'A' to process the command.</p>
+    <p style="color: yellow; font-weight: bold;">Hold for one second, speak, then wait a second before releasing.</p>
+    <p style="font-size: 0.9em; opacity: 0.8;">(If voice isn't working, refresh the page and try again.)</p>
+  </div>`;
   
   const okButton = document.createElement('button');
   okButton.textContent = 'OK';
@@ -825,56 +864,42 @@ async function processVoiceCommand(transcript) {
           }
         }
       
-        // Define attributes that can hold URL values.
-        const urlAttributes = ['href', 'action', 'src', 'formaction'];
-      
-        // Get all elements in the document.
-        const elements = document.getElementsByTagName('*');
-      
-        // Loop over all elements.
-        for (let i = 0; i < elements.length; i++) {
-          const el = elements[i];
-          
-          // Check each attribute that might contain a URL.
-          for (let j = 0; j < urlAttributes.length; j++) {
-            const attr = urlAttributes[j];
-            if (el.hasAttribute(attr)) {
-              const urlStr = el.getAttribute(attr);
-              if (urlStr) {
-                try {
-                  const url = new URL(urlStr, window.location.href).href;
-                  if (isSameOrigin(url)) {
-                    urls.add(url);
-                  }
-                } catch (e) {
-                  // Ignore invalid URLs.
-                }
-              }
-            }
+        // Process anchor elements (<a href="...">).
+        document.querySelectorAll("a[href]").forEach(a => {
+          const href = a.href;
+          if (isSameOrigin(href)) {
+            urls.add(href);
           }
+        });
       
-          // Special handling for meta refresh tags.
-          if (el.tagName.toLowerCase() === 'meta' && el.getAttribute('http-equiv')) {
-            const httpEquiv = el.getAttribute('http-equiv').toLowerCase();
-            if (httpEquiv === 'refresh') {
-              const content = el.getAttribute('content');
-              if (content) {
-                const match = content.match(/url=([^;]+)/i);
-                if (match && match[1]) {
-                  const urlStr = match[1].trim();
-                  try {
-                    const url = new URL(urlStr, window.location.href).href;
-                    if (isSameOrigin(url)) {
-                      urls.add(url);
-                    }
-                  } catch (e) {
-                    // Ignore invalid URLs.
-                  }
-                }
-              }
+        // Process form elements (<form action="...">).
+        document.querySelectorAll("form[action]").forEach(form => {
+          const action = form.getAttribute("action");
+          try {
+            const url = new URL(action, window.location.href).href;
+            if (isSameOrigin(url)) {
+              urls.add(url);
             }
+          } catch (e) {
+            // Invalid URL; skip it.
           }
-        }
+        });
+      
+        // Process script elements (<script src="...">).
+        document.querySelectorAll("script[src]").forEach(script => {
+          const src = script.src;
+          if (isSameOrigin(src)) {
+            urls.add(src);
+          }
+        });
+      
+        // Process link elements (<link href="...">).
+        document.querySelectorAll("link[href]").forEach(link => {
+          const href = link.href;
+          if (isSameOrigin(href)) {
+            urls.add(href);
+          }
+        });
       
         // Convert the Set to an array and log all unique endpoints.
      
@@ -916,19 +941,14 @@ async function processVoiceCommand(transcript) {
             key: 0,
             messages: [
               { role: "user", content: `
+
+                try searching for the exact words that may appear in any of the index of the array , look for that most.
                 <output format > the out put should contain only a object like {"index" : <index value of the given aray>} nothing else , no replies and etc , only that object </oytput format>
-                Prompt:
+                find the matching words from url and the word that followed by "find" rank each url and find the best matching url and give its index in output as mentioned in output formating
+                consider relative words and parent children words for more effeciency and accuracy
+                avoid if lot of numbers in urls
 
-                You are an AI tagger that analyzes a transcript string to determine the most relevant endpoint URL from a given array.
-
-                Task:
-                Extract Keywords: Identify important words from the transcript, especially those following intent-triggering terms like "find," "search for," "look up," or similar phrases.
-                Match with URLs: Compare the extracted keywords with the given URLs by checking for:
-                Direct matches
-                Synonyms and semantic similarity
-                Rank Relevance: Prioritize URLs based on how well they match the user’s intent.
-                Return the Best Match: Output the index of the best-matching URL in JSON format, ensuring there is no extra text or explanation.
-<transcript> ${transcript} and <endpoints> ${endpoints}
+<transcript> ${transcript} and <endpoints> ${endpoints.end}
               `
               }]
               })
@@ -1000,55 +1020,88 @@ async function processVoiceCommand(transcript) {
 
 async function run_it(transcript)
 {
-  console.log("here with require" , transcript);
-  fetch("http://localhost:3000/toggle", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
+  // console.log("here with require" , transcript);
+  // fetch("http://localhost:3000/toggle", {
+  //   method: "POST",
+  //   headers: {
+  //     "Content-Type": "application/json"
+  //   },
+  //   body: JSON.stringify({
       
-        role: "user", content: false , content2 : ""})
+  //       role: "user", content: false , content2 : ""})
        
-      });
-      let div_numbering = 0;
-    let allElements = document.querySelectorAll('div');
-    allElements.forEach(element => {
-      element.setAttribute("brain_ai_", `${div_numbering++}`);
-     });
+  //     });
+  //     let div_numbering = 0;
+  //   let allElements = document.querySelectorAll('div');
+  //   allElements.forEach(element => {
+  //     element.setAttribute("brain_ai_", `${div_numbering++}`);
+  //    });
 
-     const response7 = await fetch("http://localhost:3000/get-groq-chat-completion", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        key: 0,
-        messages: [
-          { role: "user", content: `
-            <output format > the out put should contain only a object like {"index" : <index value of the given aray>} nothing else , no replies and etc , only that object </output format>
-            <task > AI will be given a DOM (that has a brain_ai_ attribute on each div) and a TRANSCRIPT from user , The tas is to find a most relevant part of the DOM with the transcript <task>
-            <most important to do : go to all elements , never leave a element , go to every element reach depth of every element and look for similarity and give marks that representing the similarity percentage between transcript and the dom given
-            <element can be anything , button , div , p, iframe , svg and can be any html element , so search to all the depths of all the elements and find a right match of below bentioned quality and way >
-            continuously evaluate the dom and get the top 20 high scorers and again compare them and agin choose the top 10, like this
-            completely filter the webpage and choose one element .and return the <brain_ai_> attribute value like {"index" : <brain_ai_<number>} alone as output. no replies to transcript and all 
-            <examples>
-            user : find results 
-            should return the brain_ai_attributes value that of a element that has a close relation with the transcript text 
-            word matchings , meaning matchings , most importantly image matchings and etc etc .
-            </examples>
-          <prompt>: ${transcript}:</prompt>
-          <dom> ${document.documentElement.innerHTML}<dom> 
-          `
-          }]
-          })
-        });
+  //    const response7 = await fetch("http://localhost:3000/get-groq-chat-completion", {
+  //     method: "POST",
+  //     headers: {
+  //       "Content-Type": "application/json"
+  //     },
+  //     body: JSON.stringify({
+  //       key: 0,
+  //       messages: [
+  //         { role: "user", content: `
+  //           <output format > the out put should contain only a object like {"index" : <index value of the given aray>} nothing else , no replies and etc , only that object and the result should be in the dom  </output format>
+  //           <task > AI will be given a DOM (that has a brain_ai_ attribute on each div) and a TRANSCRIPT from user , The tas is to find a most relevant part of the DOM with the transcript <task>
+  //           <most important to do : go to all elements , never leave a element , go to every element reach depth of every element and look for similarity and give marks that representing the similarity percentage between transcript and the dom given
+  //           <if the element found but dont have a attribute in it so choose the nearby partner or a parent having the attribute>
+  //           <element can be anything , button , div , p, iframe , svg and can be any html element , so search to all the depths of all the elements and find a right match of below bentioned quality and way >
+  //           continuously evaluate the dom and get the top 20 high scorers and again compare them and agin choose the top 10, like this
+  //           completely filter the webpage and choose one element .and return the <brain_ai_> attribute value like {"index" : <brain_ai_<number>} alone as output. no replies to transcript and all 
+  //           <examples>
+  //           user : find results 
+  //           should return the brain_ai_attributes value that of a element that has a close relation with the transcript text 
+  //           word matchings , meaning matchings , most importantly image matchings and etc etc .
+  //           </examples>
+  //         <prompt>: ${transcript}:</prompt>
+  //         <dom> ${document.documentElement.innerHTML}<dom> 
+  //         `
+  //         }]
+  //         })
+  //       });
+
+  //       function parseJsonResponse(input) {
+  //         let cleaned = "";
+  //         // Use a for loop to remove all backtick characters.
+  //         for (let i = 0; i < input.length; i++) {
+  //           if (input[i] !== "`") {
+  //             cleaned += input[i];
+  //           }
+  //         }
+  //         // Trim whitespace.
+  //         cleaned = cleaned.trim();
+  //         // If the cleaned text starts with "json" (case-insensitive), remove it.
+  //         const lowerCleaned = cleaned.toLowerCase();
+  //         if (lowerCleaned.startsWith("json")) {
+  //           cleaned = cleaned.substring(4);
+  //         }
+  //         // Final trim and parse the JSON.
+  //         return cleaned.trim();
+  //       }
 
 
-        const candidateText7 = await response7.text();
-        console.log("Gemini candidate text:", candidateText7);
+        
+  //       const candidateText7 = await response7.text();
+  //       console.log("Gemini candidate text:", candidateText7);
+  //       let obk = parseJsonResponse(candidateText7);
+  //       console.log(obk);
+        
 
+  //       const element = document.querySelector(`[brain_ai_${obk}]`); // Select element with attribute
+  //       if (element) {
+  //           element.scrollIntoView({ behavior: "smooth", block: "center" }); // Scroll to element
+  //           element.focus({ preventScroll: true }); // Set focus
+  //       } else {
+  //           console.warn("Element with attribute 'brain_ai_1' not found.");
+  //       }
 
+        console.log("done and dusted ");
+        
 }
 
 

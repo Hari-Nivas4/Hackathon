@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "My Extension",
+  "name": "Brain AI",
   "version": "1.0",
-  "description": "An extension with tabs, storage, DOM manipulation, and script injection capabilities.",
+  "description": "A navigation assistent utilising (AI POWERED) , to make navigation more effecient and less time consuming.",
   "permissions": [
     "tabs",
     "storage",
