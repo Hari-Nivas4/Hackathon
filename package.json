@@ -136,6 +136,7 @@
     "picocolors": "^1.1.1",
     "pkg-dir": "^4.2.0",
     "proxy-addr": "^2.0.7",
+    "puppeteer": "^24.4.0",
     "qs": "^6.13.0",
     "randombytes": "^2.1.0",
     "range-parser": "^1.2.1",

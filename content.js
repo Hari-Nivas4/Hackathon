@@ -348,7 +348,9 @@ async function processVoiceCommand(transcript) {
       body: JSON.stringify({
         key: 0,
         messages: [
-          { role: "user", content: `<prompt>: ${transcript}:</prompt>
+          { role: "user", content: `
+            <output format : {"key" : <number>} and no replies , only that object</output format>
+            <prompt>: ${transcript}:</prompt>
                 <.................../very important points to persist over the entire request.................>
                 <response should never contain a reply to the user , only tags are supposed to be sent >
                 <the tags sent should be enclosed with <ans> (tag object) </ans> tags>
@@ -466,70 +468,89 @@ async function processVoiceCommand(transcript) {
 
 
 
-    if(obj.key === 2){
-      (async () => {
-        const transcript1 = transcript;
-        await scoreDOMChunksSimulated(transcript1);
+    if(obj.key === 2 || obj.key === 3){
+      (async function() {
+        // A Set to store unique URLs.
+        const urls = new Set();
+      
+        // Helper function: Check if a URL is from the same origin.
+        function isSameOrigin(urlStr) {
+          try {
+            const url = new URL(urlStr, window.location.href);
+            return url.origin === window.location.origin;
+          } catch (e) {
+            return false;
+          }
+        }
+      
+        // Process anchor elements (<a href="...">).
+        document.querySelectorAll("a[href]").forEach(a => {
+          const href = a.href;
+          if (isSameOrigin(href)) {
+            urls.add(href);
+          }
+        });
+      
+        // Process form elements (<form action="...">).
+        document.querySelectorAll("form[action]").forEach(form => {
+          const action = form.getAttribute("action");
+          try {
+            const url = new URL(action, window.location.href).href;
+            if (isSameOrigin(url)) {
+              urls.add(url);
+            }
+          } catch (e) {
+            // Invalid URL; skip it.
+          }
+        });
+      
+        // Process script elements (<script src="...">).
+        document.querySelectorAll("script[src]").forEach(script => {
+          const src = script.src;
+          if (isSameOrigin(src)) {
+            urls.add(src);
+          }
+        });
+      
+        // Process link elements (<link href="...">).
+        document.querySelectorAll("link[href]").forEach(link => {
+          const href = link.href;
+          if (isSameOrigin(href)) {
+            urls.add(href);
+          }
+        });
+      
+        // Convert the Set to an array and log the endpoints.
+        const endpoints ={end: Array.from(urls)};
+        console.log("Endpoints connected to this website:", endpoints.end);
+
+
+        try {
+          const response = await fetch("http://localhost:3000/dom-parser", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify(endpoints) // Must be a valid JSON string
+          });
+          const data = await response.json();
+          
+          let bigData = data.data;
+          console.log("big Data" , bigData);
+        } catch (error) {
+          console.error("Error:", error);
+        }
+        
+        
+
+
+
       })();
     }
 }
 
 
 
-
-
-
-
-
-
-
-
-
-async function scoreDOMChunksSimulated(transcript) {
-  const chunkCount = 10;
-  // Simulate 10 chunk "contents" (here, simple strings)
-  const simulatedChunks = Array.from({ length: chunkCount }, (_, i) => `Chunk ${i + 1} content`);
-
-  // Create an array of promises, each simulating an asynchronous score for a chunk.
-  const scorePromises = simulatedChunks.map(async (chunk, index) => {
-    
-
-    const response1 = await fetch("http://localhost:3000/get-groq-chat-completion", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        key: 0,
-        messages: [
-          { role: "user", content: `<prompt>: ${transcript}:</prompt>
-          <your response should contain a number alone , no extra text or replies , just a single number ranges from 0 to 9>  
-          <approach> do a dfs call to each element of the chunk provided and try figure out a similarity , must look after all the elements to its deapth  </approach>
-          <you were provided with thw chunck of a dom and as well as a users ask , all you have to do is , give a number that represents the similarity between the user's ask and a probability that the users ask can be respondend properly from the provided chunk , </>
-          <try to find a similar word from the users ask and the provided chunk , if found increase the score , that can be on any deep in the given chunk might have 12 anscestors , if there is a image related html aspects that can be found similar with the users ask increase the score , then try to look after the attributes that the dom element holds and , you should consider your own scenarios and do it precisely </>
-          <chunk>: ${chunk}:</chunk>   
-          `
-          }]
-          })
-        });
-        const candidateText = await response1.text();
-        const simulatedScore = candidateText;
-
-
-
-
-    console.log(`Simulated score for chunk ${index + 1}: ${simulatedScore}`);
-    return { chunk, score: simulatedScore };
-  });
-
-  // Wait for all score promises to resolve.
-  const scores = await Promise.all(scorePromises);
-
-  // Determine the chunk with the highest score.
-  let bestMatch = scores.reduce((best, curr) => (curr.score > best.score ? curr : best), { score: -Infinity });
-  console.log("Best matching chunk score:", bestMatch.score);
-  return bestMatch;
-}
 
 
 

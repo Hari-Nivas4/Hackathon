@@ -6,6 +6,7 @@
 
 
 
+
 const express = require("express");
 const { compressDOM } = require("./domCompressor");
 const cors = require("cors");
@@ -16,11 +17,22 @@ const pako = require("pako");
 const app = express();
 const port = process.env.PORT || 3000;
 
+
+
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    console.error("Bad JSON:", err);
+    return res.status(400).json({ error: 'Invalid JSON' });
+  }
+  next();
+});
+
 app.use(cors());
 app.use(express.json({ limit: "100mb" }));
 app.use(express.text({ type: "/", limit: "100mb" }));
 
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { log } = require("neo-async");
 
 let should_i_popUp = "no";
 
@@ -36,18 +48,39 @@ app.post("/create-popup1", (req, res) => {
   res.json({ ok: true, message: should_i_popUp });
 });
 
-// Endpoint to update DOM data.
-app.post("/ai-call-for-tag", (req, res) => {
-  const promptToAI = {
-    importantNote: "You are an AI assistant for a web-based task",
-    message: req.body.message || "", // Ensure message exists
-  };
 
-  console.log(promptToAI);
-  res.json({ ok: true, message: "AI call successful" });
+
+
+app.post("/dom-parser", async (req, res) => {
+  let endpoints = req.body.end;
+  console.log("Received endpoints:", endpoints);
+
+  let results = [];
+  for (let i = 0; i < endpoints.length; i++) {
+    const url = endpoints[i];
+    
+    try {
+      const response = await fetch(url);
+      const html = await response.text();
+      results.push({ url, html });
+    } catch (error) {
+      console.error(`Error fetching ${url}:`, error);
+      results.push({ url, error: error.message });
+    }
+  }
+
+  // Send the results as a JSON response
+  res.json({ success: true, data: results });
 });
 
-// Function to get the Groq chat completion.
+
+
+
+
+
+
+
+
 
 
 
