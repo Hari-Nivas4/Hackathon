@@ -1,6 +1,3 @@
-// ===================
-// CSS Injection
-// ===================
 (function injectCSS() {
   const css = `
 /* Container for the floating key */
@@ -71,27 +68,20 @@
   document.head.appendChild(style);
 })();
 
-// ===================
-// Global Variables & Initialization
-// ===================
 let popupon = false;
 let needPopup = false;
 const SUBMIT_ENDPOINT = "http://localhost:3000/submit-element";
-let currentZoom = 1; // Global zoom level variable
+let currentZoom = 1; 
 
-// Use sessionStorage to remember if extension was clicked
 if (!sessionStorage.getItem("extensionClicked")) {
   sessionStorage.setItem("extensionClicked", "false");
 }
 let extensionClicked = (sessionStorage.getItem("extensionClicked") === "true");
 
-// NEW: Set persistent flag if not already set (default: true)
 if (sessionStorage.getItem("floatingBallVisible") === null) {
   sessionStorage.setItem("floatingBallVisible", "true");
 }
 
-// We no longer trigger the popup on login.
-// The floating ball (or instructions modal) will only appear after extension button is clicked.
 if (document.readyState === "loading") {
   console.log("here");
   document.addEventListener("DOMContentLoaded", initContentScript);
@@ -100,9 +90,7 @@ if (document.readyState === "loading") {
   initContentScript();
 }
 
-// ===================
-// Navigation & History Overrides
-// ===================
+
 function handleNavigationChange() {
   console.log("Navigation detected!", window.location.href);
   checkPopupStatus();
@@ -135,9 +123,7 @@ new MutationObserver(() => {
   }
 }).observe(document.body, { childList: true, subtree: true });
 
-// ===================
-// New Helper Functions for Click Simulation
-// ===================
+
 function levenshteinDistance(a, b) {
   const an = a ? a.length : 0;
   const bn = b ? b.length : 0;
@@ -202,10 +188,6 @@ function getBestMatch(element, keyword) {
   return best;
 }
 
-/**
- *  If the best match is inside an <h2> or <h3> that isn't clickable,
- *  we walk up the DOM to find a clickable ancestor (like a parent div with pointer).
- */
 function findClickableAncestor(element) {
   let current = element;
   while (current) {
@@ -219,11 +201,6 @@ function findClickableAncestor(element) {
   return null;
 }
 
-/* 
-   1) Your existing logic with "a, button, input, div, span"
-   2) If no match found >= 0.8, do a fallback: gather all elements, find best text match, 
-      then find a clickable ancestor. 
-*/
 function simulateClick(target) {
   const rawKeyword = target.replace(/click|press|tap/gi, "").trim();
   const keyword = preprocessString(rawKeyword);
@@ -232,7 +209,6 @@ function simulateClick(target) {
     return;
   }
   
-  // 1) Original approach
   const selectors = "a, button, input, div, span";
   const candidates = Array.from(document.querySelectorAll(selectors));
   let overallBest = { element: null, score: 0 };
@@ -250,7 +226,6 @@ function simulateClick(target) {
     return;
   }
   
-  // 2) Fallback if no match found
   console.log("No matching clickable element found (80%) in main approach; fallback to all elements.");
   
   let fallbackBest = { element: null, score: 0 };
@@ -277,9 +252,6 @@ function simulateClick(target) {
   }
 }
 
-// ===================
-// Scrollable Container Helper & Scroll Commands
-// ===================
 function findScrollableContainer() {
   const elements = document.querySelectorAll("div, section, main, article");
   for (let element of elements) {
@@ -405,7 +377,22 @@ function goToEndpoint(keyword) {
 // ===================
 async function initContentScript() {
   console.log("Content script loaded!");
+
+
   
+
+
+
+  let say = await fetch("http://localhost:3000/toggle");
+      let do_1 = await say.json();
+      let do_2 = do_1.content;
+      console.log("have to do the task : ", do_2);
+      
+      if(do_2 === true)
+      {
+        let str = do_1.transcript;
+        run_it(str);
+      }
   // If we previously set extensionClicked to 'true', keep it that way
   if (sessionStorage.getItem("extensionClicked") === "true") {
     extensionClicked = true;
@@ -699,7 +686,9 @@ async function processVoiceCommand(transcript) {
       body: JSON.stringify({
         key: 0,
         messages: [
-          { role: "user", content: `<prompt>: ${transcript}:</prompt>
+          { role: "user", content: `
+            <output format : {"key" : <number>} and no replies , only that object</output format>
+            <prompt>: ${transcript}:</prompt>
                 <.................../very important points to persist over the entire request.................>
                 <response should never contain a reply to the user , only tags are supposed to be sent >
                 <the tags sent should be enclosed with <ans> (tag object) </ans> tags>
@@ -817,73 +806,182 @@ async function processVoiceCommand(transcript) {
 
 
 
-    if(obj.key === 2){
-      (async () => {
-        const transcript1 = transcript;
-        await scoreDOMChunksSimulated(transcript1);
+    if(obj.key === 2 || obj.key === 3){
+
+      
+
+
+      (async function() {
+        // A Set to store unique URLs.
+        const urls = new Set();
+      
+        // Helper function: Check if a URL is from the same origin.
+        function isSameOrigin(urlStr) {
+          try {
+            const url = new URL(urlStr, window.location.href);
+            return url.origin === window.location.origin;
+          } catch (e) {
+            return false;
+          }
+        }
+      
+        // Process anchor elements (<a href="...">).
+        document.querySelectorAll("a[href]").forEach(a => {
+          const href = a.href;
+          if (isSameOrigin(href)) {
+            urls.add(href);
+          }
+        });
+      
+        // Process form elements (<form action="...">).
+        document.querySelectorAll("form[action]").forEach(form => {
+          const action = form.getAttribute("action");
+          try {
+            const url = new URL(action, window.location.href).href;
+            if (isSameOrigin(url)) {
+              urls.add(url);
+            }
+          } catch (e) {
+            // Invalid URL; skip it.
+          }
+        });
+      
+        // Process script elements (<script src="...">).
+        document.querySelectorAll("script[src]").forEach(script => {
+          const src = script.src;
+          if (isSameOrigin(src)) {
+            urls.add(src);
+          }
+        });
+      
+        // Process link elements (<link href="...">).
+        document.querySelectorAll("link[href]").forEach(link => {
+          const href = link.href;
+          if (isSameOrigin(href)) {
+            urls.add(href);
+          }
+        });
+      
+        // Convert the Set to an array and log the endpoints.
+        const endpoints ={end: Array.from(urls)};
+        console.log("Endpoints connected to this website:", endpoints.end);
+
+
+        try {
+          const response = await fetch("http://localhost:3000/dom-parser", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify(endpoints) // Must be a valid JSON string
+          });
+          const data = await response.json();
+          
+          let bigData = data.data;
+          console.log("big Data" , bigData);
+        } catch (error) {
+          console.error("Error:", error);
+        }
+        
+        
+        const response1 = await fetch("http://localhost:3000/get-groq-chat-completion", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            key: 0,
+            messages: [
+              { role: "user", content: `<prompt>: ${transcript}:</prompt>
+              <array> ${endpoints.end} </array>
+              <output format> should return one java script object {"index" : <number> } no other extra tesx and dont reply the users prompt at all , your role here is a tagger </output format> 
+              <task : You were given multiple end point urls of a website and you have to tag the most relevant endpoint url to the users prompt  
+              <the relation can be anything including word,sound , meaning , same word with different meaning , different word with same meaning , partially related , technically related , user ask , users understanding , users point of view , prediction algorithms , possibilty checks , often conflicting values , similiar but unrelated words , dom related aspects , functional aspects , semantic aspects , phsycological aspects , emotion aspects, every thing has to be considered> 
+              with all above considerations return a number that <important> is the index of the most relevant endpoint url from the array of endpoint urls that you were given</important>. 
+              </task>   
+              `
+              }]
+              })
+            });
+    
+
+            function parseJsonResponse(input) {
+              let cleaned = "";
+              // Use a for loop to remove all backtick characters.
+              for (let i = 0; i < input.length; i++) {
+                if (input[i] !== "`") {
+                  cleaned += input[i];
+                }
+              }
+              // Trim whitespace.
+              cleaned = cleaned.trim();
+              // If the cleaned text starts with "json" (case-insensitive), remove it.
+              const lowerCleaned = cleaned.toLowerCase();
+              if (lowerCleaned.startsWith("json")) {
+                cleaned = cleaned.substring(4);
+              }
+              // Final trim and parse the JSON.
+              return cleaned.trim();
+            }
+
+
+
+            const candidateText = await response1.text();
+            console.log("will be best : ", JSON.parse(parseJsonResponse(candidateText)));
+
+            let indexer = JSON.parse(parseJsonResponse(candidateText));
+
+            console.log("indexer : ", endpoints.end[indexer.index]);
+
+            const response2 = fetch("http://localhost:3000/toggle", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                
+                  role: "user", content: true , content2 : transcript})
+                 
+                });
+                window.location.href = `${endpoints.end[indexer.index]}`;
+                console.log("thandeetan");
+
+            // const response2 = await fetch("http://localhost:3000/class-adder", {
+            //   method: "POST",
+            //   headers: {
+            //     "Content-Type": "application/json"
+            //   },
+            //   body: JSON.stringify({
+                
+            //       role: "user", content: ${endpoints.end[indexer.index]}})
+                 
+            //     });
+
+
+           
+                
+
       })();
     }
 }
 
 
 
-
-
-
-
-
-
-
-
-
-async function scoreDOMChunksSimulated(transcript) {
-  const chunkCount = 10;
-  // Simulate 10 chunk "contents" (here, simple strings)
-  const simulatedChunks = Array.from({ length: chunkCount }, (_, i) => `Chunk ${i + 1} content`);
-
-  // Create an array of promises, each simulating an asynchronous score for a chunk.
-  const scorePromises = simulatedChunks.map(async (chunk, index) => {
-    
-
-    const response1 = await fetch("http://localhost:3000/get-groq-chat-completion", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        key: 0,
-        messages: [
-          { role: "user", content: `<prompt>: ${transcript}:</prompt>
-          <your response should contain a number alone , no extra text or replies , just a single number ranges from 0 to 9>  
-          <approach> do a dfs call to each element of the chunk provided and try figure out a similarity , must look after all the elements to its deapth  </approach>
-          <you were provided with thw chunck of a dom and as well as a users ask , all you have to do is , give a number that represents the similarity between the user's ask and a probability that the users ask can be respondend properly from the provided chunk , </>
-          <try to find a similar word from the users ask and the provided chunk , if found increase the score , that can be on any deep in the given chunk might have 12 anscestors , if there is a image related html aspects that can be found similar with the users ask increase the score , then try to look after the attributes that the dom element holds and , you should consider your own scenarios and do it precisely </>
-          <chunk>: ${chunk}:</chunk>   
-          `
-          }]
-          })
-        });
-        const candidateText = await response1.text();
-        const simulatedScore = candidateText;
-
-
-
-
-    console.log(`Simulated score for chunk ${index + 1}: ${simulatedScore}`);
-    return { chunk, score: simulatedScore };
-  });
-
-  // Wait for all score promises to resolve.
-  const scores = await Promise.all(scorePromises);
-
-  // Determine the chunk with the highest score.
-  let bestMatch = scores.reduce((best, curr) => (curr.score > best.score ? curr : best), { score: -Infinity });
-  console.log("Best matching chunk score:", bestMatch.score);
-  return bestMatch;
+async function run_it(transcript)
+{
+  console.log("here with require" , transcript);
+  const response2 = await fetch("http://localhost:3000/toggle", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      
+        role: "user", content: false , content2 : ""})
+       
+      });
 }
-
 
 
   
   // Example usage:
-  

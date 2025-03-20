@@ -4,7 +4,9 @@
 
 
 
-
+let importantToggleForFinding = false;
+let related_to_toggle_string = "";
+let ultimateNumber = 0;
 
 const express = require("express");
 const { compressDOM } = require("./domCompressor");
@@ -16,11 +18,24 @@ const pako = require("pako");
 const app = express();
 const port = process.env.PORT || 3000;
 
+const fetch = require('node-fetch');
+const jsdom = require("jsdom");
+const { JSDOM } = jsdom;
+
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    console.error("Bad JSON:", err);
+    return res.status(400).json({ error: 'Invalid JSON' });
+  }
+  next();
+});
+
 app.use(cors());
 app.use(express.json({ limit: "100mb" }));
 app.use(express.text({ type: "/", limit: "100mb" }));
 
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { log } = require("neo-async");
 
 let should_i_popUp = "no";
 
@@ -36,18 +51,100 @@ app.post("/create-popup1", (req, res) => {
   res.json({ ok: true, message: should_i_popUp });
 });
 
-// Endpoint to update DOM data.
-app.post("/ai-call-for-tag", (req, res) => {
-  const promptToAI = {
-    importantNote: "You are an AI assistant for a web-based task",
-    message: req.body.message || "", // Ensure message exists
-  };
 
-  console.log(promptToAI);
-  res.json({ ok: true, message: "AI call successful" });
+
+
+app.post("/dom-parser", async (req, res) => {
+  let endpoints = req.body.end;
+  console.log("Received endpoints:", endpoints);
+
+  let results = [];
+  for (let i = 0; i < endpoints.length; i++) {
+    const url = endpoints[i];
+    
+    try {
+      const response = await fetch(url);
+      const html = await response.text();
+      results.push({ url, html });
+    } catch (error) {
+      console.error(`Error fetching ${url}:`, error);
+      results.push({ url, error: error.message });
+    }
+  }
+
+  // Send the results as a JSON response
+  res.json({ success: true, data: results });
 });
 
-// Function to get the Groq chat completion.
+
+app.post("/toggle", (req, res) => {
+    let url;
+    if(req.body.content !== null)
+    {
+      importantToggleForFinding = req.body.content;
+    }
+    if(req.body.content2 !== null )
+    {
+      related_to_toggle_string = req.body.content2;
+    }
+  });
+ 
+  app.get("/toggle", (req, res) => {
+    res.json({ ok: true, content: importantToggleForFinding , transcript : related_to_toggle_string  });
+  });
+
+// app.post("/class-adder", (req, res) => {
+//   let url;
+//   if(req.body.content !== null)
+//   {
+//     url = req.body.content;
+//     console.log("is the url ",url);
+    
+//     async function processUrl(url) {
+//       try {
+//         // Fetch the HTML from the URL.
+//         const response = await fetch(url);
+//         const htmlText = await response.text();
+    
+//         // Parse the HTML text into a DOM.
+//         const dom = new JSDOM(htmlText);
+//         const document = dom.window.document;
+    
+//         // Get all elements in the document.
+//         const allElements = document.querySelectorAll("*");
+    
+//         // Iterate over each element using a for loop.
+//         for (let i = 0; i < allElements.length; i++) {
+//           const element = allElements[i];
+//           // Add a custom attribute to each element.
+//           element.setAttribute("brain-ai-", ultimateNumber++);
+//         }
+    
+//         // Return or log the modified HTML.
+        
+//       } catch (error) {
+//         console.error("Error processing URL:", error);
+//         throw error;
+//       }
+//     }
+    
+//     // Example usage:
+//     processUrl(url)
+//       .then(modifiedHtml => {
+//         console.log("successfull");
+//       })
+//       .catch(error => {
+//         console.error("Error:", error);
+//       });
+
+//   }
+// });
+
+
+
+
+
+
 
 
 
@@ -102,10 +199,3 @@ app.post("/get-groq-chat-completion", async (req, res) => {
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`);
 });
-
-
-
-
-
-
-
