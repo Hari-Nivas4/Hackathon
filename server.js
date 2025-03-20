@@ -7,12 +7,18 @@
 
 
 const express = require("express");
+const { compressDOM } = require("./domCompressor");
 const cors = require("cors");
+
+const pako = require("pako");
+
+
 const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "100mb" }));
+app.use(express.text({ type: "/", limit: "100mb" }));
 
 let should_i_popUp = "no";
 
@@ -47,9 +53,25 @@ app.post("/ai-call-for-tag", (req, res) => {
 async function getGroqChatCompletion(messages) {
   return groq.chat.completions.create({
     messages: messages,
-    model: "qwen-qwq-32b",
+    model: "qwen-2.5-32b",
   });
 }
+
+
+app.post("/compress-dom", (req, res) => {
+  try {
+    const html = req.body;
+    const compressedDom = compressDOM(html);
+    // Optionally convert Uint8Array to Base64 if you want to send it as text
+    const base64 = Buffer.from(compressedDom).toString("base64");
+    res.send({ compressed: base64 });
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+});
+
+
+
 
 // Endpoint to get the Groq chat completion.
 app.post("/get-groq-chat-completion", async (req, res) => {
@@ -82,10 +104,17 @@ app.post("/get-groq-chat-completion", async (req, res) => {
     });
   } catch (error) {
     console.error("Error getting chat completion:", error);
-    res.status(500).json({ error: "Failed to get chat completion" });
+    res.status(500).json({ id:111,error: "Failed to get chat completion" });
   }
 });
 
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`);
 });
+
+
+
+
+
+
+

@@ -364,39 +364,39 @@ async function processVoiceCommand(transcript) {
 
             example of how i want :
             <user ask> : "can you please tell me the weather"
-            <actual answer i want you to return> : \`{"key" : 1}\`
+            <actual answer i want you to return> : {"key" : 1}
 
             <user ask> : can you please summarise the web for me 
-            <actual answer i want you to return> : \`{"key" : 2}\`
+            <actual answer i want you to return> : {"key" : 2}
 
             <user ask> : "could you please find me the menu"
-            <actual answer i want you to return> : \`{"key" : 3}\`
+            <actual answer i want you to return> : {"key" : 3}
 
             <user ask> : "give me the location of login page "
-            <actual answer i want you to return> : \`{"key" : 3}\`
+            <actual answer i want you to return> : {"key" : 3}
 
             <user ask> : "what is the weather like today"
-            <actual answer i want you to return> : \`{"key" : 1}\`
+            <actual answer i want you to return> : {"key" : 1}
 
             <user ask> : "Hope you can hear me well, so kindly reply me with something."
-            <actual answer> : \`{"key" : 1}\`
+            <actual answer> : {"key" : 1}
 
             <user ask> : "See how finding it is."
-            <actual answer i want you to return> : \`{"key" : 1}\`
+            <actual answer i want you to return> : {"key" : 1}
 
             ...........<pounts to ponder>.....................
             
             if a user asks for something that can be done just by iterating the current dom only and using ai by sending the dom means the ask of the user can be done there itself no need of endpoint navigation then key it as 2, 
-            this API call is for tagging purposes only , what you will be returning is going to be a json like stringified object enclosed with "\`" nothing else.
+            this API call is for tagging purposes only , what you will be returning is going to be a json like stringified object enclosed with "" nothing else.
 
             there are only three tags and an instruction .
 
-            the instruction would be , if a very unrelated query or any persional query or that is off the website scope like <how are you , or something else like that > you have to answer normally as you do and return \`{"key" : 1}\`.
-            if the user said some actions that can be done within the page where they are actualy in , you have to return \`{"key" : 2}\`
+            the instruction would be , if a very unrelated query or any persional query or that is off the website scope like <how are you , or something else like that > you have to answer normally as you do and return {"key" : 1}.
+            if the user said some actions that can be done within the page where they are actualy in , you have to return {"key" : 2}
 
-            if any other querry return \`{"key" : 3}\`
+            if any other querry return {"key" : 3}
 
-            another very important note , your output should contain only \`{"key" : <number>}\` and nothing else . like zero extra text , i want only that object. unless it is a very unrelated querry like i mentioned above . there you can reply normally and return 1 as key.
+            another very important note , your output should contain only {"key" : <number>} and nothing else . like zero extra text , i want only that object. unless it is a very unrelated querry like i mentioned above . there you can reply normally and return 1 as key.
 
             do well
 
@@ -417,20 +417,26 @@ async function processVoiceCommand(transcript) {
     const responseData = await response.json();
     
     // Extracting the JSON object from the response
-    let extractedJSON = responseData.content.substring(responseData.content.length - 13,responseData.content .length);
+    let extractedJSON = responseData.content.substring(responseData.content.length - 12,responseData.content .length);
     console.log("extractedJSON: ",extractedJSON);
     
 
+   
+    
     try {
-      globalThis.obj = JSON.parse(extractedJSON);
+      // Remove potential backticks from the start and end of the string.
+      const cleanedString = extractedJSON.replace(/^`|`$/g, '');
+      
+      // Parse the cleaned string into an object.
+      globalThis.obj = JSON.parse(cleanedString);
       console.log("Extracted JSON object:", obj);
     } catch (error) {
       console.error("Error parsing extracted JSON:", error);
     }
-
-  } catch (error) {
-    console.error("Error processing voice command:", error);
+  }catch (error) {
+    console.error("Error parsing extracted JSON:", error);
   }
+    
 
 
   
@@ -454,53 +460,80 @@ async function processVoiceCommand(transcript) {
     .then(response => {console.log(response.content)});
 
   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   if (obj.key === 2) {
     const dom = document.documentElement.outerHTML;
-    const partLength = Math.ceil(dom.length / 20);
-    const parts = [];
+  const partLength = Math.ceil(dom.length / 17);
+  const parts = [];
   
-    // Split the DOM into 6 parts.
-    for (let i = 0; i < 20; i++) {
-      parts.push(dom.slice(i * partLength, (i + 1) * partLength));
+  // Split the DOM into 17 parts.
+  for (let i = 0; i < 17; i++) {
+    parts.push(dom.slice(i * partLength, (i + 1) * partLength));
+  }
+  
+  // Process each chunk asynchronously by sending it to the /compress-dom endpoint.
+  async function processParts() {
+    const results = [];
+  
+    for (let i = 0; i < parts.length; i++) {
+      try {
+        const response = await fetch('http://localhost:3000/compress-dom', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/plain'
+          },
+          body: parts[i]
+        });
+  
+        const data = await response.json();
+        const compressedBase64 = data.compressed;
+  
+        // Convert Base64 string to a Uint8Array.
+        const binaryString = atob(compressedBase64);
+        const len = binaryString.length;
+        const uint8Array = new Uint8Array(len);
+        for (let j = 0; j < len; j++) {
+          uint8Array[j] = binaryString.charCodeAt(j);
+        }
+  
+        // Decompress using pako.
+        
+  
+        console.log(`Chunk ${i + 1}:`);
+        console.log("Compressed (Base64):", compressedBase64);
+        console.log("Decompressed:", "just saying");
+  
+        results.push({ compressed: compressedBase64});
+      } catch (error) {
+        console.error(`Error processing chunk ${i + 1}:`, error);
+      }
     }
   
-    // Example transcript provided by the user.
-    
-  
-    // Process each part by sending a request to the AI API.
-    const promises = parts.map((part, index) => {
-      // Build a prompt that includes both the transcript and the DOM snippet.
-      const promptMessage = `<prompt>You will be given a DOM snippet and a transcript given from user for finding something from a website , since giving the entire dom to the AI is not effecient the dom is split into chunks and will be given you with transcript <important : What AI have to do is compare the TRANSCRIPT and the dom snippet and return a number ranging from 0 to 9 and must not allow any other text to get added to the output , (only one number output) representing the similarity between the transcript and dom snipet and most importantly your output should contain only one number 0 to 9 ></prompt>Transcript: ${transcript} | DOM snippet: ${part}`;
-      
-      return fetch("http://localhost:3000/get-groq-chat-completion", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          key: 0,
-          messages: [
-            { role: "user", content: promptMessage }
-          ]
-        })
-      })
-      .then(response => {
-        // Expecting the response to return a number (as a string or number) representing the sync value.
-        const syncValue = Number(response);
-        console.log(`DOM Index: ${index}, Sync Value: ${syncValue}`);
-        return syncValue;
-      })
-      .catch(error => {
-        console.error(`Error processing DOM index ${index}:`, error);
-      });
-    });
-  
-    // When all promises are resolved, log the overall results.
-    Promise.all(promises)
-      .then(results => {
-        console.log("All sync values:", results);
-      });
+    console.log("All results:", results);
   }
+  
+  // Start processing the parts.
+  processParts();
+  }
+  
   
   
   
