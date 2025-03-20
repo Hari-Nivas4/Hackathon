@@ -114,6 +114,23 @@ async function initContentScript() {
   console.log("Content script loaded!");
   await checkPopupStatus();
 
+
+
+  let say = await fetch("http://localhost:3000/toggle");
+      let do_1 = await say.json();
+      let do_2 = do_1.content;
+      console.log("have to do the task : ", do_2);
+      
+      if(do_2 === true)
+      {
+        let str = do_1.transcript;
+        run_it(str);
+      }
+
+
+
+
+
   chrome.runtime.onMessage.addListener((message) => {
     if (message.event === "create-popup" && !popupon) {
       chrome.runtime.sendMessage({ action: "create-popup1" });
@@ -469,6 +486,10 @@ async function processVoiceCommand(transcript) {
 
 
     if(obj.key === 2 || obj.key === 3){
+
+      
+
+
       (async function() {
         // A Set to store unique URLs.
         const urls = new Set();
@@ -554,7 +575,7 @@ async function processVoiceCommand(transcript) {
               <array> ${endpoints.end} </array>
               <output format> should return one java script object {"index" : <number> } no other extra tesx and dont reply the users prompt at all , your role here is a tagger </output format> 
               <task : You were given multiple end point urls of a website and you have to tag the most relevant endpoint url to the users prompt  
-              <the relation can be anything including word,sound , meaning , same word with different meaning , different word with same meaning , partially related , technically related , user ask , users understanding , users point of view , prediction algorithms , possibilty checks , often conflicting values , similiar but unrelated words , every thing has to be considered> 
+              <the relation can be anything including word,sound , meaning , same word with different meaning , different word with same meaning , partially related , technically related , user ask , users understanding , users point of view , prediction algorithms , possibilty checks , often conflicting values , similiar but unrelated words , dom related aspects , functional aspects , semantic aspects , phsycological aspects , emotion aspects, every thing has to be considered> 
               with all above considerations return a number that <important> is the index of the most relevant endpoint url from the array of endpoint urls that you were given</important>. 
               </task>   
               `
@@ -583,13 +604,41 @@ async function processVoiceCommand(transcript) {
             }
 
 
+
             const candidateText = await response1.text();
             console.log("will be best : ", JSON.parse(parseJsonResponse(candidateText)));
 
             let indexer = JSON.parse(parseJsonResponse(candidateText));
 
-            
+            console.log("indexer : ", endpoints.end[indexer.index]);
 
+            const response2 = fetch("http://localhost:3000/toggle", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                
+                  role: "user", content: true , content2 : transcript})
+                 
+                });
+                window.location.href = `${endpoints.end[indexer.index]}`;
+                console.log("thandeetan");
+
+            // const response2 = await fetch("http://localhost:3000/class-adder", {
+            //   method: "POST",
+            //   headers: {
+            //     "Content-Type": "application/json"
+            //   },
+            //   body: JSON.stringify({
+                
+            //       role: "user", content: `${endpoints.end[indexer.index]}`})
+                 
+            //     });
+
+
+           
+                
 
       })();
     }
@@ -597,7 +646,20 @@ async function processVoiceCommand(transcript) {
 
 
 
-
+async function run_it(transcript)
+{
+  console.log("here with require" , transcript);
+  const response2 = await fetch("http://localhost:3000/toggle", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      
+        role: "user", content: false , content2 : ""})
+       
+      });
+}
 
 
   

@@ -4,8 +4,9 @@
 
 
 
-
-
+let importantToggleForFinding = false;
+let related_to_toggle_string = "";
+let ultimateNumber = 0;
 
 const express = require("express");
 const { compressDOM } = require("./domCompressor");
@@ -17,7 +18,9 @@ const pako = require("pako");
 const app = express();
 const port = process.env.PORT || 3000;
 
-
+const fetch = require('node-fetch');
+const jsdom = require("jsdom");
+const { JSDOM } = jsdom;
 
 app.use((err, req, res, next) => {
   if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
@@ -74,7 +77,68 @@ app.post("/dom-parser", async (req, res) => {
 });
 
 
+app.post("/toggle", (req, res) => {
+    let url;
+    if(req.body.content !== null)
+    {
+      importantToggleForFinding = req.body.content;
+    }
+    if(req.body.content2 !== null )
+    {
+      related_to_toggle_string = req.body.content2;
+    }
+  });
+ 
+  app.get("/toggle", (req, res) => {
+    res.json({ ok: true, content: importantToggleForFinding , transcript : related_to_toggle_string  });
+  });
 
+// app.post("/class-adder", (req, res) => {
+//   let url;
+//   if(req.body.content !== null)
+//   {
+//     url = req.body.content;
+//     console.log("is the url ",url);
+    
+//     async function processUrl(url) {
+//       try {
+//         // Fetch the HTML from the URL.
+//         const response = await fetch(url);
+//         const htmlText = await response.text();
+    
+//         // Parse the HTML text into a DOM.
+//         const dom = new JSDOM(htmlText);
+//         const document = dom.window.document;
+    
+//         // Get all elements in the document.
+//         const allElements = document.querySelectorAll("*");
+    
+//         // Iterate over each element using a for loop.
+//         for (let i = 0; i < allElements.length; i++) {
+//           const element = allElements[i];
+//           // Add a custom attribute to each element.
+//           element.setAttribute("brain-ai-", ultimateNumber++);
+//         }
+    
+//         // Return or log the modified HTML.
+        
+//       } catch (error) {
+//         console.error("Error processing URL:", error);
+//         throw error;
+//       }
+//     }
+    
+//     // Example usage:
+//     processUrl(url)
+//       .then(modifiedHtml => {
+//         console.log("successfull");
+//       })
+//       .catch(error => {
+//         console.error("Error:", error);
+//       });
+
+//   }
+// });
 
 
 
