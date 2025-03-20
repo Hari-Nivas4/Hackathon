@@ -542,7 +542,53 @@ async function processVoiceCommand(transcript) {
         }
         
         
+        const response1 = await fetch("http://localhost:3000/get-groq-chat-completion", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            key: 0,
+            messages: [
+              { role: "user", content: `<prompt>: ${transcript}:</prompt>
+              <array> ${endpoints.end} </array>
+              <output format> should return one java script object {"index" : <number> } no other extra tesx and dont reply the users prompt at all , your role here is a tagger </output format> 
+              <task : You were given multiple end point urls of a website and you have to tag the most relevant endpoint url to the users prompt  
+              <the relation can be anything including word,sound , meaning , same word with different meaning , different word with same meaning , partially related , technically related , user ask , users understanding , users point of view , prediction algorithms , possibilty checks , often conflicting values , similiar but unrelated words , every thing has to be considered> 
+              with all above considerations return a number that <important> is the index of the most relevant endpoint url from the array of endpoint urls that you were given</important>. 
+              </task>   
+              `
+              }]
+              })
+            });
+    
 
+            function parseJsonResponse(input) {
+              let cleaned = "";
+              // Use a for loop to remove all backtick characters.
+              for (let i = 0; i < input.length; i++) {
+                if (input[i] !== "`") {
+                  cleaned += input[i];
+                }
+              }
+              // Trim whitespace.
+              cleaned = cleaned.trim();
+              // If the cleaned text starts with "json" (case-insensitive), remove it.
+              const lowerCleaned = cleaned.toLowerCase();
+              if (lowerCleaned.startsWith("json")) {
+                cleaned = cleaned.substring(4);
+              }
+              // Final trim and parse the JSON.
+              return cleaned.trim();
+            }
+
+
+            const candidateText = await response1.text();
+            console.log("will be best : ", JSON.parse(parseJsonResponse(candidateText)));
+
+            let indexer = JSON.parse(parseJsonResponse(candidateText));
+
+            
 
 
       })();
