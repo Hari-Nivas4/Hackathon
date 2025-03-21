@@ -209,46 +209,68 @@ function simulateClick(target) {
     return;
   }
   
+  // Optimize element search by using more specific selectors first
+  // Try to find exact text match first for efficiency
+  const exactMatchXPath = `//*[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '${keyword.toLowerCase()}')]`;
+  const exactMatches = document.evaluate(exactMatchXPath, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+  
+  if (exactMatches.snapshotLength > 0) {
+    // Sort matches by length to find closest match
+    const matchedElements = [];
+    for (let i = 0; i < exactMatches.snapshotLength; i++) {
+      const element = exactMatches.snapshotItem(i);
+      if (element.offsetParent !== null) { // Only visible elements
+        matchedElements.push({
+          element,
+          text: element.textContent,
+          score: similarity(keyword, preprocessString(element.textContent))
+        });
+      }
+    }
+    
+    if (matchedElements.length > 0) {
+      // Sort by similarity score
+      matchedElements.sort((a, b) => b.score - a.score);
+      const bestMatch = matchedElements[0];
+      
+      if (bestMatch.score >= 0.7) {
+        console.log("Fast path: Clicking exact match element with score:", bestMatch.score);
+        
+        // Find clickable element (self or ancestor)
+        const elementToClick = findClickableAncestor(bestMatch.element) || bestMatch.element;
+        elementToClick.click();
+        return;
+      }
+    }
+  }
+  
+  // Fallback to normal search if no exact match found
   const selectors = "a, button, input, div, span";
   const candidates = Array.from(document.querySelectorAll(selectors));
   let overallBest = { element: null, score: 0 };
-  candidates.forEach(candidate => {
-    if (!candidate.offsetParent) return;
+  
+  // Limit the number of candidates to check for performance
+  const visibleCandidates = candidates.filter(c => c.offsetParent !== null).slice(0, 100);
+  
+  visibleCandidates.forEach(candidate => {
     let candidateBest = getBestMatch(candidate, keyword);
     if (candidateBest.score > overallBest.score) {
       overallBest = candidateBest;
     }
   });
   
-  if (overallBest.score >= 0.8 && overallBest.element) {
+  if (overallBest.score >= 0.7 && overallBest.element) {
     console.log("Clicking element with score:", overallBest.score, overallBest.element);
     overallBest.element.click();
     return;
   }
   
-  console.log("No matching clickable element found (80%) in main approach; fallback to all elements.");
-  
-  let fallbackBest = { element: null, score: 0 };
-  const allElements = document.querySelectorAll("*");
-  allElements.forEach(elem => {
-    if (!elem.offsetParent) return;
-    const text = elem.innerText || "";
-    const score = similarity(keyword, preprocessString(text));
-    if (score > fallbackBest.score) {
-      fallbackBest = { element: elem, score };
-    }
-  });
-  
-  if (fallbackBest.score >= 0.8) {
-    const ancestor = findClickableAncestor(fallbackBest.element);
-    if (ancestor) {
-      console.log("Clicking fallback ancestor with score:", fallbackBest.score, ancestor);
-      ancestor.click();
-    } else {
-      console.log("Found fallback text match but no clickable ancestor:", fallbackBest.element);
-    }
+  // Final fallback with lower threshold
+  if (overallBest.score >= 0.5 && overallBest.element) {
+    console.log("Clicking element with lower score:", overallBest.score, overallBest.element);
+    overallBest.element.click();
   } else {
-    console.log("No match found even in fallback approach for:", keyword);
+    console.log("No match found for:", keyword);
   }
 }
 
@@ -378,26 +400,27 @@ function goToEndpoint(keyword) {
 async function initContentScript() {
   console.log("Content script loaded!");
 
-
-  
-
-
-
   let say = await fetch("http://localhost:3000/toggle");
-      let do_1 = await say.json();
-      let do_2 = do_1.content;
-      console.log("have to do the task : ", do_2);
+  let do_1 = await say.json();
+  let do_2 = do_1.content;
+  console.log("have to do the task : ", do_2);
       
-      if(do_2 === true)
-      {
-        let str = do_1.transcript;
-        run_it(str);
-      }
+  if(do_2 === true) {
+    let str = do_1.transcript;
+    run_it(str);
+  }
+  
   // If we previously set extensionClicked to 'true', keep it that way
   if (sessionStorage.getItem("extensionClicked") === "true") {
     extensionClicked = true;
     checkPopupStatus();
   }
+  
+  // Always create the floating key for voice recognition
+  createFloatingKey();
+  
+  // Set instructions as accepted so popup never shows
+  sessionStorage.setItem("instructionsAccepted", "true");
   
   chrome.runtime.onMessage.addListener((message) => {
     if (message.event === "create-popup") {
@@ -409,9 +432,10 @@ async function initContentScript() {
 }
 
 function createFloatingKey() {
-  // Only create if persistent flag is "true"
-  if (sessionStorage.getItem("floatingBallVisible") !== "true") return;
+  // Always create the floating key regardless of session storage
   if (document.getElementById("brain-floating-key-container")) return;
+  
+  console.log("Creating floating key for voice control");
   
   const container = document.createElement("div");
   container.id = "brain-floating-key-container";
@@ -420,7 +444,15 @@ function createFloatingKey() {
   const floatingKey = document.createElement("button");
   floatingKey.className = "brain-voice-btn";
   floatingKey.style.cssText = "left: 20px; right: auto;";
-  floatingKey.textContent = "";
+  
+  // Replace mic symbol with icon16.png
+  const iconImg = document.createElement("img");
+  iconImg.src = chrome.runtime.getURL("assets/icon16.png");
+  iconImg.alt = "Brain AI";
+  iconImg.style.width = "20px";
+  iconImg.style.height = "20px";
+  floatingKey.appendChild(iconImg);
+  
   container.appendChild(floatingKey);
   
   const voiceOutput = document.createElement("div");
@@ -441,6 +473,7 @@ function createFloatingKey() {
     color: transparent;
     animation: rainbowAnimation 5s linear infinite;
   `;
+  voiceOutput.textContent = "Press 'A' key to speak";
   container.appendChild(voiceOutput);
   
   const style = document.createElement("style");
@@ -454,52 +487,278 @@ function createFloatingKey() {
   document.head.appendChild(style);
   
   if (!(window.SpeechRecognition || window.webkitSpeechRecognition)) {
-    console.error("Voice recognition not supported");
+    console.error("Voice recognition not supported in this browser");
+    voiceOutput.textContent = "Voice recognition not supported in this browser";
     return;
   }
+  
+  console.log("Speech recognition is supported in this browser");
+  
   const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
   recognition.continuous = true;
   recognition.interimResults = true;
   recognition.lang = "en-US";
   let recognizing = false;
   let transcript = "";
+  let keyPressStartTime = 0;
+  let silenceTimer = null;
+  let lastResultTimestamp = 0;
   
-  recognition.onresult = (event) => {
-    transcript = Array.from(event.results)
-      .filter(res => res.isFinal)
-      .map(res => res[0].transcript)
-      .join(' ');
-    voiceOutput.textContent = transcript;
-  };
+  // Function to detect speech silence and process command
+  function detectSilence() {
+    const now = Date.now();
+    const silenceThreshold = 3000; // Increased from 1000ms to 3000ms (3 seconds of silence)
+    
+    // Only process if we have received some speech and then had silence
+    if (transcript.trim() && now - lastResultTimestamp > silenceThreshold && recognizing) {
+      console.log("Silence detected - processing command automatically");
+      voiceOutput.textContent = "Processing: " + transcript;
+      
+      try {
+        recognition.stop();
+      } catch (err) {
+        console.error("Error stopping recognition:", err);
+      }
+      
+      recognizing = false;
+      floatingKey.classList.remove("brain-active");
+      
+      if (transcript.trim()) {
+        // Process the voice command immediately without setTimeout
+        processDOMWithSpeech(transcript.trim());
+      }
+    } else if (recognizing && now - lastResultTimestamp > 10000 && !transcript.trim()) {
+      // If no speech detected for 10 seconds and transcript is empty, don't stop but show a hint
+      voiceOutput.textContent = "Listening... (say something or tap microphone to stop)";
+    }
+  }
   
-  recognition.onerror = (event) => {
-    console.error("Recognition error:", event.error);
-  };
+  // Add continuous mode toggle
+  let continuousMode = false;
   
-  document.addEventListener("keydown", (e) => {
-    if (e.repeat) return;
-    if (e.key.toLowerCase() === "a" && !recognizing) {
-      keyPressStartTime = Date.now();
-      // Reset transcript to default message.
-      transcript = " ";
+  // Create continuous mode toggle button
+  const modeSwitcher = document.createElement("button");
+  modeSwitcher.className = "brain-mode-switch";
+  modeSwitcher.style.cssText = `
+    position: fixed;
+    top: 20px;
+    left: 90px;
+    width: 30px;
+    height: 30px;
+    background: ${continuousMode ? '#4CAF50' : '#ff5722'};
+    color: white;
+    font-size: 14px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 5px rgba(0,0,0,0.3);
+    cursor: pointer;
+    z-index: 10000;
+  `;
+  modeSwitcher.textContent = "🔄";
+  modeSwitcher.title = "Toggle continuous mode";
+  
+  // Add toggle functionality
+  modeSwitcher.addEventListener("click", () => {
+    continuousMode = !continuousMode;
+    modeSwitcher.style.background = continuousMode ? '#4CAF50' : '#ff5722';
+    voiceOutput.textContent = continuousMode ? 
+      "Continuous mode ON (will keep listening)" : 
+      "Standard mode (stops after silence)";
+    
+    // In continuous mode, restart recognition if it had stopped
+    if (continuousMode && !recognizing) {
       try {
         recognition.start();
         recognizing = true;
         floatingKey.classList.add("brain-active");
       } catch (err) {
-        console.error("Speech recognition start error:", err);
+        console.error("Error starting continuous recognition:", err);
       }
     }
   });
 
-  // Stop recording on keyup only if the key was held for at least 300ms.
+  // Add the button to the container
+  container.appendChild(modeSwitcher);
+
+  recognition.onstart = () => {
+    console.log("Voice recognition started");
+    voiceOutput.textContent = continuousMode ? 
+      "Listening continuously..." : 
+      "Listening...";
+    lastResultTimestamp = Date.now();
+    
+    // Check for silence less frequently to reduce CPU usage
+    if (silenceTimer) {
+      clearInterval(silenceTimer);
+    }
+    silenceTimer = setInterval(detectSilence, 500);
+  };
+  
+  recognition.onresult = (event) => {
+    console.log("Got voice recognition result", event);
+    lastResultTimestamp = Date.now(); // Update timestamp when speech is detected
+    
+    // Get the most recent result
+    const latestResult = event.results[event.results.length - 1];
+    const newTranscript = latestResult[0].transcript;
+    
+    // Only update if it's a final result or we have nothing yet
+    if (latestResult.isFinal || !transcript) {
+      transcript = Array.from(event.results)
+        .map(res => res[0].transcript)
+        .join(' ');
+    }
+    
+    voiceOutput.textContent = transcript || newTranscript;
+  };
+  
+  recognition.onend = () => {
+    console.log("Voice recognition ended");
+    if (silenceTimer) {
+      clearInterval(silenceTimer);
+      silenceTimer = null;
+    }
+    
+    // If in continuous mode, restart recognition automatically
+    if (continuousMode) {
+      try {
+        // Small delay to prevent rapid restarts
+        setTimeout(() => {
+          if (continuousMode) {
+            recognition.start();
+            console.log("Restarted recognition in continuous mode");
+          }
+        }, 300);
+        return; // Skip the rest in continuous mode
+      } catch (err) {
+        console.error("Error restarting recognition:", err);
+        continuousMode = false; // Disable continuous mode on error
+        modeSwitcher.style.background = '#ff5722';
+      }
+    }
+    
+    // Standard mode ending behavior
+    if (recognizing) {
+      recognizing = false;
+      floatingKey.classList.remove("brain-active");
+      
+      if (transcript.trim()) {
+        voiceOutput.textContent = "Processing: " + transcript;
+        processDOMWithSpeech(transcript.trim());
+      }
+    }
+  };
+  
+  recognition.onerror = (event) => {
+    console.error("Recognition error:", event.error);
+    
+    // Handle different error types
+    if (event.error === 'no-speech') {
+      voiceOutput.textContent = "No speech detected. Please try again.";
+    } else if (event.error === 'aborted') {
+      voiceOutput.textContent = "Recognition was aborted";
+    } else if (event.error === 'network') {
+      voiceOutput.textContent = "Network error. Please check your connection.";
+    } else if (event.error === 'not-allowed') {
+      voiceOutput.textContent = "Microphone access denied. Please allow mic access.";
+    } else {
+      voiceOutput.textContent = "Error: " + event.error;
+    }
+    
+    if (silenceTimer) {
+      clearInterval(silenceTimer);
+      silenceTimer = null;
+    }
+    
+    // Try to restart in continuous mode after errors
+    if (continuousMode) {
+      setTimeout(() => {
+        try {
+          if (continuousMode && !recognizing) {
+            recognition.start();
+            recognizing = true;
+            floatingKey.classList.add("brain-active");
+          }
+        } catch (err) {
+          console.error("Failed to restart after error:", err);
+          continuousMode = false;
+          modeSwitcher.style.background = '#ff5722';
+        }
+      }, 1000);
+    }
+  };
+  
+  // Add click handler to the floating button as an alternative to keyboard
+  floatingKey.addEventListener("click", () => {
+    if (!recognizing) {
+      try {
+        recognition.start();
+        recognizing = true;
+        floatingKey.classList.add("brain-active");
+        voiceOutput.textContent = continuousMode ? 
+          "Listening continuously..." : 
+          "Listening...";
+      } catch (err) {
+        console.error("Speech recognition start error:", err);
+        voiceOutput.textContent = "Error starting recognition";
+      }
+    } else {
+      try {
+        if (silenceTimer) {
+          clearInterval(silenceTimer);
+          silenceTimer = null;
+        }
+        continuousMode = false; // Turn off continuous mode when manually stopped
+        modeSwitcher.style.background = '#ff5722';
+        recognition.stop();
+        recognizing = false;
+        floatingKey.classList.remove("brain-active");
+        
+        if (transcript.trim()) {
+          processDOMWithSpeech(transcript.trim());
+        }
+      } catch (err) {
+        console.error("Error stopping recognition:", err);
+      }
+    }
+  });
+  
+  // Document-wide keydown event for 'A' key
+  document.addEventListener("keydown", (e) => {
+    console.log("Key pressed:", e.key);
+    if (e.repeat) return;
+    if (e.key.toLowerCase() === "a" && !recognizing) {
+      keyPressStartTime = Date.now();
+      // Reset transcript
+      transcript = "";
+      try {
+        recognition.start();
+        recognizing = true;
+        floatingKey.classList.add("brain-active");
+        voiceOutput.textContent = "Listening...";
+      } catch (err) {
+        console.error("Speech recognition start error:", err);
+        voiceOutput.textContent = "Error starting recognition";
+      }
+    }
+  });
+
+  // Stop recording on keyup
   document.addEventListener("keyup", (e) => {
+    console.log("Key released:", e.key);
     if (e.key.toLowerCase() === "a" && recognizing) {
       const holdDuration = Date.now() - keyPressStartTime;
       const MIN_HOLD_DURATION = 300; // 300ms threshold
       if (holdDuration < MIN_HOLD_DURATION) {
         try {
+          if (silenceTimer) {
+            clearInterval(silenceTimer);
+            silenceTimer = null;
+          }
           recognition.abort();
+          voiceOutput.textContent = "Cancelled (too short)";
         } catch (err) {
           console.error("Error aborting recognition:", err);
         }
@@ -508,16 +767,26 @@ function createFloatingKey() {
         return;
       }
       try {
+        if (silenceTimer) {
+          clearInterval(silenceTimer);
+          silenceTimer = null;
+        }
         recognition.stop();
+        voiceOutput.textContent = "Processing: " + transcript;
       } catch (err) {
         console.error("Error stopping recognition:", err);
       }
       recognizing = false;
       floatingKey.classList.remove("brain-active");
-      // Use setTimeout to pass a function reference.
-      setTimeout(() => processDOMWithSpeech(transcript.trim()), 100);
+      
+      if (transcript.trim()) {
+        // Process the voice command immediately
+        processDOMWithSpeech(transcript.trim());
+      }
     }
   });
+  
+  console.log("Voice recognition initialized and ready to use");
 }
 
 // ===================
@@ -526,12 +795,51 @@ function createFloatingKey() {
 function showInstructionsModal() {
   const modal = document.createElement('div');
   modal.id = 'instructions-modal';
-  modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+  modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 10000;';
   
   const modalContent = document.createElement('div');
-  modalContent.style.cssText = 'background: white; padding: 20px; border-radius: 5px; max-width: 500px; text-align: center;';
-  // Replace with your actual instructions
-  modalContent.innerHTML = `<p>Please read these instructions carefully. [Your instructions here]</p>`;
+  modalContent.style.cssText = 'background: white; padding: 20px; border-radius: 12px; max-width: 500px; max-height: 500px; text-align: center; box-shadow: 0px 8px 16px rgba(0, 0, 0, 0.2);';
+  
+  modalContent.innerHTML = `<div style="
+    background: linear-gradient(135deg, #4a90e2, #9013fe); /* Modern gradient */
+    border: 2px solid #ddd;
+    border-radius: 15px;
+    padding: 16px;
+    font-family: 'Georgia', serif;
+    max-width: 450px;
+    color: white;
+    box-shadow: 0px 5px 15px rgba(0, 0, 0, 0.3);
+  ">
+    <p style="margin-top: 0; font-weight: bold; font-size: 1.2em;">
+      Please read these instructions carefully
+    </p>
+    <h4 style="
+      margin-bottom: 10px;
+      margin-top: 10px;
+      font-size: 1.4em;
+      color: #ffcc00; /* Gold for contrast */
+    ">
+      Voice Command Actions:
+    </h4>
+    <ul style="margin: 0; padding-left: 20px; line-height: 1.5; list-style-type: square;">
+      <li style="margin-bottom: 10px;">
+        <p>User can scroll, zoom, start/stop voice, navigate pages using voice commands.</p>
+      </li>
+      <li style="margin-bottom: 10px;">
+        <p>Say <span style="color:gold; font-weight:bold;">"Find"</span> followed by the Finder name to locate an element.</p>
+      </li>
+      <li style="margin-bottom: 10px;">
+        <p>Say <span style="color:gold; font-weight:bold;">"TakeScreenshot"</span> to capture the page.</p>
+      </li>
+      <li style="margin-bottom: 10px;">
+        <p>Say <span style="color:gold; font-weight:bold;">"Click"</span> followed by the element name to interact.</p>
+      </li>
+    </ul>
+    <p style="color: yellow; font-weight: bold;">Hold 'A' to start recording voice commands.</p>
+    <p style="color: yellow; font-weight: bold;">Release 'A' to process the command.</p>
+    <p style="color: yellow; font-weight: bold;">Hold for one second, speak, then wait a second before releasing.</p>
+    <p style="font-size: 0.9em; opacity: 0.8;">(If voice isn't working, refresh the page and try again.)</p>
+  </div>`;
   
   const okButton = document.createElement('button');
   okButton.textContent = 'OK';
@@ -565,11 +873,8 @@ async function checkPopupStatus() {
     // So it persists across navigation and refresh.
     if (needPopup && !popupon && extensionClicked) {
       popupon = true;
-      if (sessionStorage.getItem("instructionsAccepted") !== "true") {
-        showInstructionsModal();
-      } else {
-        createFloatingKey();
-      }
+      // Always skip the instructions modal
+      createFloatingKey();
     } 
     else if (!needPopup && popupon && !extensionClicked) {
       popupon = false;
@@ -588,23 +893,7 @@ async function processDOMWithSpeech(target) {
   if (!target) return;
   const lowerTarget = target.toLowerCase();
   
-  // If the command includes "click cross" or "click cross button",
-  // search for any element whose normalized text content is exactly "X" and click it.
-  if (lowerTarget.includes("click cross") || lowerTarget.includes("click cross button")) {
-    const crossElement = document.evaluate(
-      "//*[normalize-space(text())='X']",
-      document,
-      null,
-      XPathResult.FIRST_ORDERED_NODE_TYPE,
-      null
-    ).singleNodeValue;
-    if (crossElement) {
-      console.log("Clicking cross element:", crossElement);
-      crossElement.click();
-      return;
-    }
-  }
-  
+  // Common commands that don't need API processing
   if (lowerTarget.includes("scroll down") || lowerTarget.includes("roll down") ||
       lowerTarget.includes("down") || lowerTarget.includes("move down") || lowerTarget.includes("call down")) {
     scrollDown();
@@ -667,8 +956,29 @@ async function processDOMWithSpeech(target) {
     }
     return;
   }
+
+  // Check command cache before making API call
+  if (commandCache.has(lowerTarget)) {
+    console.log("Using cached command result for:", lowerTarget);
+    const cachedResult = commandCache.get(lowerTarget);
+    handleCommandResult(cachedResult, lowerTarget);
+    return;
+  }
   
-  processVoiceCommand(target);
+  // Process through API if command not recognized locally
+  await processVoiceCommand(target);
+}
+
+// Helper function to handle command results
+function handleCommandResult(result, transcript) {
+  if (result.key === 1) {
+    // Personal query/chat response - handle appropriately
+    console.log("Personal query result:", result);
+  } else if (result.key === 2 || result.key === 3) {
+    // DOM or endpoint navigation
+    // Handle appropriately
+    console.log("Navigation result:", result);
+  }
 }
 
 // ===================
@@ -677,111 +987,140 @@ async function processDOMWithSpeech(target) {
 async function processVoiceCommand(transcript) {
   console.log("Voice command:", transcript);
   let obj;
+  
   try {
-    const response = await fetch("http://localhost:3000/get-groq-chat-completion", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        key: 0,
-        messages: [
-          { role: "user", content: `
-            <output format : {"key" : <number>} and no replies , only that object</output format>
-            <prompt>: ${transcript}:</prompt>
-                <.................../very important points to persist over the entire request.................>
-                <response should never contain a reply to the user , only tags are supposed to be sent >
-                <the tags sent should be enclosed with <ans> (tag object) </ans> tags>
-                <.................../very important points to persist over the entire request.................>
-                <core point> This is going to be a prompt refiner that gives only the refined prompt only with zero extra text so that that can be directly feed to the ai for the process specified down and <must><must>work like llama-3.3-70b-specdec</must></must></core point>  
-                
-                <in short>: if the query is based on personal stuff or any unrelated query or any random stuff than the website then its key is 1 and if the query that can be done within the current dom then key it as 2 and if it is the query that can be processed by going through all end points connected to the dom will be keyed 3 if not falls or invalid on any category put it in key 7>
-                <user was told that including "find" will be a best practice for across dom process such as key 3 and "this" for same page process such as key 2 this will not work all time>
-                <Important note> I want you to refine the prompt to send it the ai, that is "tagger" works with the below specified principle </important note>
-                <principle of the tagger>
-                ......<very important note> ........
-                make sure you extract only the necessary data from the prompt and neglect the nouns like "for me" "for him" "please" and etc and process only the command
-                and work accordingly, i expect high precesion and very high acceptance and take a little time and do it.
-                ........<importtant note> ........
-                example of how i want :
-                <user ask>: "can you please tell me the weather"
-                <actual answer i want you to return>: {"key": 1}
-                <user ask>: can you please summarise the web for me 
-                <actual answer i want you to return>: {"key": 2}
-                <user ask>: "could you please find me the menu"
-                <actual answer i want you to return>: {"key": 3}
-                <user ask>: "give me the location of login page"
-                <actual answer i want you to return>: {"key": 3}
-                <user ask>: "what is the weather like today"
-                <actual answer i want you to return>: {"key": 1}
-                <user ask>: "Hope you can hear me well, so kindly reply me with something."
-                <actual answer>: {"key": 1}
-                <user ask>: "See how finding it is."
-                <actual answer i want you to return>: {"key": 1}
-                ...........<pounts to ponder>.....................
-                if a user asks for something that can be done just by iterating the current dom only and using ai by sending the dom means the ask of the user can be done there itself no need of endpoint navigation then key it as 2, 
-                this API call is for tagging purposes only, what you will be returning is going to be a json like stringified object enclosed with "" nothing else.
-                there are only three tags and an instruction.
-                the instruction would be, if a very unrelated query or any persional query or that is off the website scope like <how are you, or something else like that> you have to answer normally as you do and return {"key": 1}.
-                if the user said some actions that can be done within the page where they are actualy in, you have to return {"key": 2}
-                if any other querry return {"key": 3}
-                another very important note, your output should contain only {"key": <number>} and nothing else. like zero extra text, i want only that object. unless it is a very unrelated querry like i mentioned above. there you can reply normally and return 1 as key.
-                do well
-                ..............<extra>........................
-                .............<WHAT AI IS USED FOR>.............
-                you are going to work as a tagger for now, the tag you provide will be given to an extension that would do some flow changes with it, so act accordingly.
-                .............<goal of the project>..................
-                this is an extension which will be used for navigation purposes, the biggest achievement that this extension has to achieve is: if user said <"give me the menu of this hotel"> that voice will be converted to text (already done and that's how you received it) and have to tag his query <what this call meant for> and has to navigate to the menu that can be in any form such as <a href="menu.html"> or <a id="menu"> or <a class="menu"> or any other form and has to click on that or any type of span/div that has some text or table or svgs etc. (can be any element that HTML has).
-                </principle of the tagger>`
-          }]
-          })
-        });
+    // Show processing indicator
+    const voiceOutput = document.getElementById("brain-voice-output");
+    if (voiceOutput) {
+      voiceOutput.textContent = "Processing command...";
+    }
     
+    // Use faster approach for common click commands
+    const lowerTranscript = transcript.toLowerCase();
+    if (lowerTranscript.startsWith("find ") || lowerTranscript.startsWith("search ")) {
+      // Fast-track for find/search commands - assume key 3
+      obj = { key: 3 };
+    } else if (lowerTranscript.includes("click ") || lowerTranscript.includes("press ")) {
+      // Fast-track for click commands that weren't handled by simulateClick - assume key 2
+      const element = lowerTranscript.replace(/click|press/gi, "").trim();
+      simulateClick("click " + element);
+      return;
+    } else {
+      // For other commands, call the API
+      const response = await fetch("http://localhost:3000/get-groq-chat-completion", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          key: 0,
+          messages: [
+            { role: "user", content: `
+              <output format : {"key" : <number>} and no replies , only that object</output format>
+              <prompt>: ${transcript}:</prompt>
+                  <.................../very important points to persist over the entire request.................>
+                  <response should never contain a reply to the user , only tags are supposed to be sent >
+                  <the tags sent should be enclosed with <ans> (tag object) </ans> tags>
+                  <.................../very important points to persist over the entire request.................>
+                  <core point> This is going to be a prompt refiner that gives only the refined prompt only with zero extra text so that that can be directly feed to the ai for the process specified down and <must><must>work like llama-3.3-70b-specdec</must></must></core point>  
+                  
+                  <in short>: if the query is based on personal stuff or any unrelated query or any random stuff than the website then its key is 1 and if the query that can be done within the current dom then key it as 2 and if it is the query that can be processed by going through all end points connected to the dom will be keyed 3 if not falls or invalid on any category put it in key 7>
+                  <user was told that including "find" will be a best practice for across dom process such as key 3 and "this" for same page process such as key 2 this will not work all time>
+                  <Important note> I want you to refine the prompt to send it the ai, that is "tagger" works with the below specified principle </important note>
+                  <principle of the tagger>
+                  ......<very important note> ........
+                  make sure you extract only the necessary data from the prompt and neglect the nouns like "for me" "for him" "please" and etc and process only the command
+                  and work accordingly, i expect high precesion and very high acceptance and take a little time and do it.
+                  ........<importtant note> ........
+                  example of how i want :
+                  <user ask>: "can you please tell me the weather"
+                  <actual answer i want you to return>: {"key": 1}
+                  <user ask>: can you please summarise the web for me 
+                  <actual answer i want you to return>: {"key": 2}
+                  <user ask>: "could you please find me the menu"
+                  <actual answer i want you to return>: {"key": 3}
+                  <user ask>: "give me the location of login page"
+                  <actual answer i want you to return>: {"key": 3}
+                  <user ask>: "what is the weather like today"
+                  <actual answer i want you to return>: {"key": 1}
+                  <user ask>: "Hope you can hear me well, so kindly reply me with something."
+                  <actual answer>: {"key": 1}
+                  <user ask>: "See how finding it is."
+                  <actual answer i want you to return>: {"key": 1}
+                  ...........<pounts to ponder>.....................
+                  if a user asks for something that can be done just by iterating the current dom only and using ai by sending the dom means the ask of the user can be done there itself no need of endpoint navigation then key it as 2, 
+                  this API call is for tagging purposes only, what you will be returning is going to be a json like stringified object enclosed with "" nothing else.
+                  there are only three tags and an instruction.
+                  the instruction would be, if a very unrelated query or any persional query or that is off the website scope like <how are you, or something else like that> you have to answer normally as you do and return {"key": 1}.
+                  if the user said some actions that can be done within the page where they are actualy in, you have to return {"key": 2}
+                  if any other querry return {"key": 3}
+                  another very important note, your output should contain only {"key": <number>} and nothing else. like zero extra text, i want only that object. unless it is a very unrelated querry like i mentioned above. there you can reply normally and return 1 as key.
+                  do well
+                  ..............<extra>........................
+                  .............<WHAT AI IS USED FOR>.............
+                  you are going to work as a tagger for now, the tag you provide will be given to an extension that would do some flow changes with it, so act accordingly.
+                  .............<goal of the project>..................
+                  this is an extension which will be used for navigation purposes, the biggest achievement that this extension has to achieve is: if user said <"give me the menu of this hotel"> that voice will be converted to text (already done and that's how you received it) and have to tag his query <what this call meant for> and has to navigate to the menu that can be in any form such as <a href="menu.html"> or <a id="menu"> or <a class="menu"> or any other form and has to click on that or any type of span/div that has some text or table or svgs etc. (can be any element that HTML has).
+                  </principle of the tagger>`
+            }]
+            })
+          });
+      
 
-    
-    const candidateText = await response.text();
-    console.log("Gemini candidate text:", candidateText);
-    
+      
+      const candidateText = await response.text();
+      console.log("Gemini candidate text:", candidateText);
+      
 
-    function parseJsonResponse(input) {
-      let cleaned = "";
-      // Use a for loop to remove all backtick characters.
-      for (let i = 0; i < input.length; i++) {
-        if (input[i] !== "`") {
-          cleaned += input[i];
+      function parseJsonResponse(input) {
+        let cleaned = "";
+        // Use a for loop to remove all backtick characters.
+        for (let i = 0; i < input.length; i++) {
+          if (input[i] !== "`") {
+            cleaned += input[i];
+          }
+        }
+        // Trim whitespace.
+        cleaned = cleaned.trim();
+        // If the cleaned text starts with "json" (case-insensitive), remove it.
+        const lowerCleaned = cleaned.toLowerCase();
+        if (lowerCleaned.startsWith("json")) {
+          cleaned = cleaned.substring(4);
+        }
+        // Final trim and parse the JSON.
+        return JSON.parse(cleaned.trim());
+      }
+      
+      
+      
+      
+      try {
+        obj = JSON.parse(candidateText);
+      } catch (parseError) {
+        obj = parseJsonResponse(candidateText);
+      }
+
+      console.log("Parsed object:", obj);
+      
+      // Cache the result for future use
+      if (obj && obj.key) {
+        commandCache.set(transcript.toLowerCase(), obj);
+        // Limit cache size to prevent memory issues
+        if (commandCache.size > 50) {
+          // Remove oldest entry
+          const firstKey = commandCache.keys().next().value;
+          commandCache.delete(firstKey);
         }
       }
-      // Trim whitespace.
-      cleaned = cleaned.trim();
-      // If the cleaned text starts with "json" (case-insensitive), remove it.
-      const lowerCleaned = cleaned.toLowerCase();
-      if (lowerCleaned.startsWith("json")) {
-        cleaned = cleaned.substring(4);
-      }
-      // Final trim and parse the JSON.
-      return JSON.parse(cleaned.trim());
-    }
-    
-    
-    
-    
-    try {
-      obj = JSON.parse(candidateText);
-    } catch (parseError) {
-      obj = parseJsonResponse(candidateText);
     }
 
-    console.log("Parsed object:", obj);
-
-  }catch (error) {
+  } catch (error) {
     console.error("Error parsing extracted JSON:", error);
+    return;
   }
-    
-// let obj;
-
-  
-
-  if(obj.key === 1){
+      
+  // Process the result based on the key
+  if (obj.key === 1) {
     const response1 = await fetch("http://localhost:3000/get-groq-chat-completion", {
       method: "POST",
       headers: {
@@ -802,189 +1141,202 @@ async function processVoiceCommand(transcript) {
         console.log("Gemini candidate text:", candidateText);
   }
 
-
-
-
-
-    if(obj.key === 2 || obj.key === 3){
-
-      
-
-
-      (async function() {
-        // A Set to store unique URLs.
-        const urls = new Set();
-      
-        // Helper function: Check if a URL is from the same origin.
-        function isSameOrigin(urlStr) {
-          try {
-            const url = new URL(urlStr, window.location.href);
-            return url.origin === window.location.origin;
-          } catch (e) {
-            return false;
-          }
-        }
-      
-        // Process anchor elements (<a href="...">).
-        document.querySelectorAll("a[href]").forEach(a => {
-          const href = a.href;
-          if (isSameOrigin(href)) {
-            urls.add(href);
-          }
-        });
-      
-        // Process form elements (<form action="...">).
-        document.querySelectorAll("form[action]").forEach(form => {
-          const action = form.getAttribute("action");
-          try {
-            const url = new URL(action, window.location.href).href;
-            if (isSameOrigin(url)) {
-              urls.add(url);
-            }
-          } catch (e) {
-            // Invalid URL; skip it.
-          }
-        });
-      
-        // Process script elements (<script src="...">).
-        document.querySelectorAll("script[src]").forEach(script => {
-          const src = script.src;
-          if (isSameOrigin(src)) {
-            urls.add(src);
-          }
-        });
-      
-        // Process link elements (<link href="...">).
-        document.querySelectorAll("link[href]").forEach(link => {
-          const href = link.href;
-          if (isSameOrigin(href)) {
-            urls.add(href);
-          }
-        });
-      
-        // Convert the Set to an array and log the endpoints.
-        const endpoints ={end: Array.from(urls)};
-        console.log("Endpoints connected to this website:", endpoints.end);
-
-
-        try {
-          const response = await fetch("http://localhost:3000/dom-parser", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify(endpoints) // Must be a valid JSON string
-          });
-          const data = await response.json();
-          
-          let bigData = data.data;
-          console.log("big Data" , bigData);
-        } catch (error) {
-          console.error("Error:", error);
-        }
-        
-        
-        const response1 = await fetch("http://localhost:3000/get-groq-chat-completion", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            key: 0,
-            messages: [
-              { role: "user", content: `<prompt>: ${transcript}:</prompt>
-              <array> ${endpoints.end} </array>
-              <output format> should return one java script object {"index" : <number> } no other extra tesx and dont reply the users prompt at all , your role here is a tagger </output format> 
-              <task : You were given multiple end point urls of a website and you have to tag the most relevant endpoint url to the users prompt  
-              <the relation can be anything including word,sound , meaning , same word with different meaning , different word with same meaning , partially related , technically related , user ask , users understanding , users point of view , prediction algorithms , possibilty checks , often conflicting values , similiar but unrelated words , dom related aspects , functional aspects , semantic aspects , phsycological aspects , emotion aspects, every thing has to be considered> 
-              with all above considerations return a number that <important> is the index of the most relevant endpoint url from the array of endpoint urls that you were given</important>. 
-              </task>   
-              `
-              }]
-              })
-            });
-    
-
-            function parseJsonResponse(input) {
-              let cleaned = "";
-              // Use a for loop to remove all backtick characters.
-              for (let i = 0; i < input.length; i++) {
-                if (input[i] !== "`") {
-                  cleaned += input[i];
-                }
-              }
-              // Trim whitespace.
-              cleaned = cleaned.trim();
-              // If the cleaned text starts with "json" (case-insensitive), remove it.
-              const lowerCleaned = cleaned.toLowerCase();
-              if (lowerCleaned.startsWith("json")) {
-                cleaned = cleaned.substring(4);
-              }
-              // Final trim and parse the JSON.
-              return cleaned.trim();
-            }
-
-
-
-            const candidateText = await response1.text();
-            console.log("will be best : ", JSON.parse(parseJsonResponse(candidateText)));
-
-            let indexer = JSON.parse(parseJsonResponse(candidateText));
-
-            console.log("indexer : ", endpoints.end[indexer.index]);
-
-            const response2 = fetch("http://localhost:3000/toggle", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({
-                
-                  role: "user", content: true , content2 : transcript})
-                 
-                });
-                window.location.href = `${endpoints.end[indexer.index]}`;
-                console.log("thandeetan");
-
-            // const response2 = await fetch("http://localhost:3000/class-adder", {
-            //   method: "POST",
-            //   headers: {
-            //     "Content-Type": "application/json"
-            //   },
-            //   body: JSON.stringify({
-                
-            //       role: "user", content: `${endpoints.end[indexer.index]}`})
-                 
-            //     });
-
-
-           
-                
-
-      })();
-    }
+  if (obj.key === 2 || obj.key === 3) {
+    // Process endpoint navigation command fast
+    processEndpointNavigation(transcript, obj.key);
+  }
 }
 
+// Separate function for endpoint navigation to make code cleaner
+async function processEndpointNavigation(transcript, keyType) {
+  // A Set to store unique URLs.
+  const urls = new Set();
 
+  // Helper function: Check if a URL is from the same origin.
+  function isSameOrigin(urlStr) {
+    try {
+      const url = new URL(urlStr, window.location.href);
+      return url.origin === window.location.origin;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Process anchor elements (<a href="...">).
+  document.querySelectorAll("a[href]").forEach(a => {
+    const href = a.href;
+    if (isSameOrigin(href)) {
+      urls.add(href);
+    }
+  });
+
+  // Only process these if needed
+  if (urls.size < 10) {
+    // Process form elements (<form action="...">).
+    document.querySelectorAll("form[action]").forEach(form => {
+      const action = form.getAttribute("action");
+      try {
+        const url = new URL(action, window.location.href).href;
+        if (isSameOrigin(url)) {
+          urls.add(url);
+        }
+      } catch (e) {
+        // Invalid URL; skip it.
+      }
+    });
+  }
+
+  // Convert the Set to an array
+  const endpoints = {end: Array.from(urls)};
+  console.log("Endpoints connected to this website:", endpoints.end);
+
+  if (endpoints.end.length === 0) {
+    console.log("No endpoints found - trying click instead");
+    simulateClick("click " + transcript.replace("find", "").trim());
+    return;
+  }
+
+  try {
+    // Faster endpoint parsing
+    const lowerTranscript = transcript.toLowerCase();
+    let bestIndex = -1;
+    let bestScore = 0;
+    
+    // Manual search for better performance
+    for (let i = 0; i < endpoints.end.length; i++) {
+      const url = endpoints.end[i].toLowerCase();
+      const urlParts = url.split(/[\/\-_?&#.]/);
+      
+      // Check each part of the URL for a match
+      for (const part of urlParts) {
+        const score = similarity(part, lowerTranscript.replace("find", "").trim());
+        if (score > bestScore) {
+          bestScore = score;
+          bestIndex = i;
+        }
+      }
+    }
+    
+    // If good match found, navigate directly
+    if (bestScore > 0.6 && bestIndex !== -1) {
+      console.log("Found matching endpoint with score:", bestScore);
+      
+      // Set toggle state
+      fetch("http://localhost:3000/toggle", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          role: "user", content: true, content2: transcript
+        })
+      });
+      
+      // Navigate
+      window.location.href = endpoints.end[bestIndex];
+      return;
+    }
+    
+    // If no good match, use API for better matching
+    const response1 = await fetch("http://localhost:3000/get-groq-chat-completion", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        key: 0,
+        messages: [
+          { role: "user", content: `
+            try searching for the exact words that may appear in any of the index of the array , look for that most.
+            <output format > the out put should contain only a object like {"index" : <index value of the given aray>} nothing else , no replies and etc , only that object </oytput format>
+            find the matching words from url and the word that followed by "find" rank each url and find the best matching url and give its index in output as mentioned in output formating
+            consider relative words and parent children words for more effeciency and accuracy
+            avoid if lot of numbers in urls
+
+            <transcript> ${transcript} and <endpoints> ${endpoints.end}
+          `
+          }]
+          })
+        });
+
+    function parseJsonResponse(input) {
+      let cleaned = "";
+      // Use a for loop to remove all backtick characters.
+      for (let i = 0; i < input.length; i++) {
+        if (input[i] !== "`") {
+          cleaned += input[i];
+        }
+      }
+      // Trim whitespace.
+      cleaned = cleaned.trim();
+      // If the cleaned text starts with "json" (case-insensitive), remove it.
+      const lowerCleaned = cleaned.toLowerCase();
+      if (lowerCleaned.startsWith("json")) {
+        cleaned = cleaned.substring(4);
+      }
+      // Final trim and parse the JSON.
+      return cleaned.trim();
+    }
+
+    const candidateText = await response1.text();
+    console.log("will be best : ", JSON.parse(parseJsonResponse(candidateText)));
+
+    let indexer = JSON.parse(parseJsonResponse(candidateText));
+    console.log( endpoints.end[indexer.index]);
+    
+    console.log("indexer : ", endpoints.end[indexer.index]);
+
+    // Set toggle state and navigate
+    fetch("http://localhost:3000/toggle", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        role: "user", content: true, content2: transcript
+      })
+    });
+    
+    window.location.href = `${endpoints.end[indexer.index]}`;
+    
+  } catch (error) {
+    console.error("Error during endpoint navigation:", error);
+    
+    // Fallback to click if navigation fails
+    simulateClick("click " + transcript.replace("find", "").trim());
+  }
+}
 
 async function run_it(transcript)
 {
-  console.log("here with require" , transcript);
-  const response2 = await fetch("http://localhost:3000/toggle", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      
-        role: "user", content: false , content2 : ""})
-       
-      });
+  console.log("done and dusted ");
 }
 
+// Add message event listener for debugging messages
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log("Content script received message:", message);
+  
+  if (message.event === "create-popup") {
+    console.log("Create popup message received");
+    createFloatingKey();
+    sendResponse({ success: true });
+    return true;
+  }
+  
+  if (message.event === "reload-extension") {
+    console.log("Reload extension message received");
+    initContentScript();
+    sendResponse({ success: true, message: "Extension reloaded" });
+    return true;
+  }
+  
+  if (message.event === "ping") {
+    console.log("Ping received");
+    sendResponse({ success: true, message: "Content script is active" });
+    return true;
+  }
+  
+  return false;
+});
 
-  
-  // Example usage:
-  
-  
-  // Example usage:
+let commandCache = new Map(); // Cache for recently processed commands
