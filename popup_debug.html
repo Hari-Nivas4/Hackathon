@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Extension Debug</title>
+    <link rel="stylesheet" href="popup.css">
+    <style>
+        body {
+            width: 300px;
+            min-height: 200px;
+            padding: 10px;
+            font-family: Arial, sans-serif;
+        }
+        #debug-log {
+            margin-top: 10px;
+            padding: 8px;
+            background: #f0f0f0;
+            border: 1px solid #ccc;
+            height: 120px;
+            overflow-y: auto;
+            font-size: 12px;
+        }
+        button {
+            margin: 5px 0;
+            padding: 5px 10px;
+        }
+    </style>
+</head>
+<body>
+    <section id="head-of-extension">
+        <h3 style="
+            font-size: 1.5em;
+            font-weight: bold;
+            font-family: Arial, sans-serif;
+            color: #4A90E2;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        ">
+            BRAIN AI DEBUG
+            <img src="/assets/icon16.png" alt="" style="
+                width: 24px;
+                height: 24px;
+                vertical-align: middle;
+                border-radius: 5px;
+                box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.2);
+            ">
+        </h3>
+    </section>
+
+    <div>
+        <button id="checkServer">Check Server Connection</button>
+        <button id="togglePopup">Toggle Popup</button>
+        <button id="reloadExtension">Reload Extension</button>
+    </div>
+    
+    <div id="debug-log">Debug info will appear here</div>
+
+    <script>
+        function log(message) {
+            const debugLog = document.getElementById('debug-log');
+            const logEntry = document.createElement('div');
+            logEntry.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+            debugLog.appendChild(logEntry);
+            debugLog.scrollTop = debugLog.scrollHeight;
+        }
+
+        // Check server connection
+        document.getElementById('checkServer').addEventListener('click', async () => {
+            try {
+                log('Checking server connection...');
+                const response = await fetch('http://localhost:3000/should-i-pop');
+                const data = await response.json();
+                log(`Server response: ${JSON.stringify(data)}`);
+            } catch (error) {
+                log(`Server error: ${error.message}`);
+            }
+        });
+
+        // Toggle popup
+        document.getElementById('togglePopup').addEventListener('click', async () => {
+            try {
+                log('Toggling popup...');
+                const response = await fetch('http://localhost:3000/create-popup1', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                log(`Toggle response: ${JSON.stringify(data)}`);
+            } catch (error) {
+                log(`Toggle error: ${error.message}`);
+            }
+        });
+
+        // Reload extension
+        document.getElementById('reloadExtension').addEventListener('click', () => {
+            log('Sending reload message to content script...');
+            chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+                if (tabs[0]) {
+                    chrome.tabs.sendMessage(tabs[0].id, { event: "reload-extension" }, response => {
+                        if (chrome.runtime.lastError) {
+                            log(`Error: ${chrome.runtime.lastError.message}`);
+                        } else {
+                            log(`Content script response: ${JSON.stringify(response)}`);
+                        }
+                    });
+                } else {
+                    log('No active tab found');
+                }
+            });
+        });
+
+        // Initial check
+        window.addEventListener('DOMContentLoaded', () => {
+            log('Debug popup loaded');
+            log(`Extension ID: ${chrome.runtime.id}`);
+            
+            // Check content script
+            chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+                if (tabs[0]) {
+                    log(`Active tab: ${tabs[0].url}`);
+                    chrome.tabs.sendMessage(tabs[0].id, { event: "ping" }, response => {
+                        if (chrome.runtime.lastError) {
+                            log(`Content script not responding: ${chrome.runtime.lastError.message}`);
+                        } else {
+                            log(`Content script responded: ${JSON.stringify(response)}`);
+                        }
+                    });
+                } else {
+                    log('No active tab found');
+                }
+            });
+        });
+    </script>
+</body>
+</html> 
